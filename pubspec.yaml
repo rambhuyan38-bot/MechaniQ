@@ -1,25 +1,20 @@
 name: mechaniq
-description: "MechaniQ - Premium AI Vehicle Doctor App"
-publish_to: "none"
+description: "MechaniQ - Elite AI Vehicle Doctor Application"
+publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.6
-  flutter_blue_plus: ^1.31.4
-  http: ^1.2.0
+  flutter_blue_plus: ^1.31.0
   sqflite: ^2.3.0
-  path_provider: ^2.1.1
-  firebase_core: ^2.24.0
-  firebase_auth: ^4.15.0
-  firebase_app_check: ^0.2.10
-  provider: ^6.1.1
+  path: ^1.8.3
   fl_chart: ^0.66.0
-  google_fonts: ^6.1.0
+  path_provider: ^2.1.1
+  uuid: ^4.3.3
 
 dev_dependencies:
   flutter_test:
