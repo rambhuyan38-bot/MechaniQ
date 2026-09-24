@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "38038289114",
+    "firebase_url": "https://flutter-ai-playground-33af8-default-rtdb.firebaseio.com",
+    "project_id": "flutter-ai-playground-33af8",
+    "storage_bucket": "flutter-ai-playground-33af8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38038289114:android:37f24abf49435b6c5bc3e3",
+        "android_client_info": {
+          "package_name": "com.babuai.zara"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYfosA4wPcqT4PVi67l_aTswMunxoJlLI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38038289114:android:8a27e6c32f3e3fc75bc3e3",
+        "android_client_info": {
+          "package_name": "com.mechaniq.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYfosA4wPcqT4PVi67l_aTswMunxoJlLI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38038289114:android:21699c132bff4ddd5bc3e3",
+        "android_client_info": {
+          "package_name": "com.nextype.keyboard"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYfosA4wPcqT4PVi67l_aTswMunxoJlLI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
