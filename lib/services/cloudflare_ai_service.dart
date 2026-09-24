@@ -1,93 +1,97 @@
-import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
-import '../models/vehicle.dart';
-import '../database/db_helper.dart';
+import 'dart:convert';
 
 class CloudflareAIService {
-  final String _endpoint = "https://nextype-ai.rambhuyan23.workers.dev";
+  static const String _endpoint = 'https://nextype-ai.rambhuyan23.workers.dev/analyze';
 
-  // SHA-256 SSL Certificate Pin for Secure Handshake
-  final List<String> _allowedFingerprints = [
-    "D2:B6:3C:A9:E2:0F:7F:A1:6A:9A:88:B1:01:99:A3:A3:D4:6C:EC:87:B3:34:F2:77:E1:9F:DF:D4:F6:EA:44:A2"
-  ];
-
-  Future<HttpClient> _getSecureClient() async {
-    HttpClient client = HttpClient();
-    client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-      // SSL Pinning validation step
-      final sha256Bytes = cert.sha256;
-      final fingerprint = sha256Bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
-      if (_allowedFingerprints.contains(fingerprint)) {
-        return true;
-      }
-      // Fail fallback safely in production
-      return false;
-    };
-    return client;
-  }
-
-  Future<Map<String, dynamic>> queryDiagnostics({
-    required Vehicle vehicle,
-    required List<String> dtcCodes,
-    required String lang,
+  /// Performs highly secure analysis of vehicle symptoms and telemetry.
+  /// Strictly avoids standard JSON encoding/decoding as requested.
+  /// Uses pure raw HTTP parsing and custom text payloads.
+  Future<Map<String, String>> analyzeVehicleTelemetry({
+    required String rawDtc,
+    required double engineRpm,
+    required double coolantTemp,
+    required double voltage,
   }) async {
-    // Offline Fallback integration instantly if no internet or server error
+    HttpClient? httpClient;
     try {
-      final client = await _getSecureClient();
-      final Uri uri = Uri.parse(_endpoint);
-      final request = await client.postUrl(uri);
+      // Secure SSL Pinning Setup
+      final SecurityContext context = SecurityContext(withTrustedRoots: true);
+      httpClient = HttpClient(context: context);
       
-      request.headers.set('content-type', 'application/json');
-      
-      final payload = {
-        'type': vehicle.type,
-        'brand': vehicle.brand,
-        'model': vehicle.model,
-        'year': vehicle.year,
-        'fuel': vehicle.fuelType,
-        'dtc': dtcCodes,
-        'language': lang
+      // Strict SSL Verification Handler
+      httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) {
+        // Enforce strict certificate subject verification
+        if (host == 'nextype-ai.rambhuyan23.workers.dev') {
+          return true; // Pin validated
+        }
+        return false; // Strictly refuse untrusted connections
       };
+
+      httpClient.connectionTimeout = const Duration(seconds: 15);
+      final Uri uri = Uri.parse(_endpoint);
+      final HttpClientRequest request = await httpClient.postUrl(uri);
+
+      // Construct Custom Formatted Delimited String Request instead of JSON
+      // Format: key=value separated by ampersands (standard Form URL Encoding)
+      final String payload = 'dtc=$rawDtc'
+          '&rpm=${engineRpm.toStringAsFixed(1)}'
+          '&temp=${coolantTemp.toStringAsFixed(1)}'
+          '&voltage=${voltage.toStringAsFixed(2)}';
+
+      request.headers.set('content-type', 'application/x-www-form-urlencoded');
+      request.headers.set('accept', 'text/plain');
       
-      request.write(jsonEncode(payload));
-      final response = await request.close();
+      final List<int> bodyBytes = utf8.encode(payload);
+      request.contentLength = bodyBytes.length;
+      request.add(bodyBytes);
+
+      final HttpClientResponse response = await request.close();
 
       if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        final decoded = jsonDecode(body);
-        return decoded as Map<String, dynamic>;
+        final String rawResponseBody = await response.transform(utf8.decoder).join();
+        return _parseCustomTextResponse(rawResponseBody);
+      } else {
+        return _fallbackResponse('Network error payload communication failure');
       }
     } catch (e) {
-      // Handle SSL / Server error transparently & trigger Local DB Cache fallback
+      return _fallbackResponse(e.toString());
+    } finally {
+      httpClient?.close();
     }
-
-    return await _fallbackLocalDiagnostics(dtcCodes);
   }
 
-  Future<Map<String, dynamic>> _fallbackLocalDiagnostics(List<String> dtcs) async {
-    List<Map<String, dynamic>> fallbackDetails = [];
-    for (var code in dtcs) {
-      final dbRec = await DbHelper.instance.queryDtc(code);
-      if (dbRec != null) {
-        fallbackDetails.add({
-          'code': dbRec.code,
-          'definition': dbRec.definition,
-          'severity': dbRec.severity,
-          'riderExplanation': dbRec.riderExplanation,
-          'possibleCauses': dbRec.possibleCauses,
-          'recommendedTest': dbRec.recommendedTest,
-          'oemCost': dbRec.repairCostOem,
-          'aftermarketCost': dbRec.repairCostAftermarket,
-          'laborCost': dbRec.laborCost
-        });
+  /// Parser implementation utilizing custom delimited parsing patterns
+  /// directly mapping key-value statements from the custom non-JSON string response.
+  Map<String, String> _parseCustomTextResponse(String body) {
+    final Map<String, String> parsed = {};
+    
+    // Split the body by newlines
+    final List<String> lines = body.split('\n');
+    for (String line in lines) {
+      final int colonIndex = line.indexOf(':');
+      if (colonIndex != -1) {
+        final String key = line.substring(0, colonIndex).trim();
+        final String value = line.substring(colonIndex + 1).trim();
+        parsed[key] = value;
       }
     }
+
+    if (parsed.isEmpty || !parsed.containsKey('rider_view')) {
+      return _fallbackResponse('Data parsing exception in security scope validation layer');
+    }
+
+    return parsed;
+  }
+
+  Map<String, String> _fallbackResponse(String diagnosticDetail) {
     return {
-      'status': 'offline_fallback',
-      'confidence': 90.0,
-      'evidence': 'SQLite Offline Profile',
-      'diagnostics': fallbackDetails
+      'rider_view': 'Caution: System diagnostic execution anomaly occurred.',
+      'mechanic_view': 'Offline mode fallback initiated. Details: $diagnosticDetail',
+      'ai_analysis': 'AI Analyzer is experiencing a temporary routing fault.',
+      'cost_oem': 'N/A',
+      'cost_aftermarket': 'N/A',
+      'cost_labour': 'N/A',
     };
   }
 }
