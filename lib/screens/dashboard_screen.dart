@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_colors.dart';
-import '../services/obd_service.dart'; // <-- OBD सर्विस को यहाँ इम्पोर्ट किया है
+import '../services/obd_service.dart';
+import 'multi_view_results_screen.dart'; // <-- नया पेज यहाँ इम्पोर्ट किया है
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -11,12 +12,11 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final OBDService _obdService = OBDService(); // सर्विस का इंस्टेंस
+  final OBDService _obdService = OBDService(); 
   
   bool isConnected = false;
   int healthScore = 95;
   
-  // टेलीमेट्री डेटा के लिए वेरिएबल्स
   String rpm = "0";
   String speed = "0";
   String temp = "---";
@@ -25,7 +25,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // OBD सर्विस की स्ट्रीम को सुनना शुरू करें
     _obdService.telemetryStream.listen((data) {
       if (mounted) {
         setState(() {
@@ -38,7 +37,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  // ब्लूटूथ कनेक्ट करने का फंक्शन
   Future<void> _toggleConnection() async {
     if (isConnected) {
       _obdService.disconnect();
@@ -89,7 +87,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         actions: [
-          // ब्लूटूथ बटन - अब यह असली लॉजिक से जुड़ गया है
           IconButton(
             icon: Icon(
               isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
@@ -106,7 +103,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Vehicle Health Score
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(20),
@@ -116,7 +112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       BoxShadow(
                         color: isConnected 
                             ? AppColors.primaryNeonBlue.withOpacity(0.3)
-                            : Colors.transparent, // कनेक्ट होने पर नियन इफ़ेक्ट बढ़ेगा
+                            : Colors.transparent, 
                         blurRadius: 30,
                         spreadRadius: 5,
                       )
@@ -171,7 +167,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 15),
               
-              // 4 Live Data Cards (अब यहाँ वेरिएबल्स हैं)
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -188,7 +183,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 40),
 
-              // "Scan Now" Button
               SizedBox(
                 width: double.infinity,
                 height: 65,
@@ -209,7 +203,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                        );
                        return;
                     }
-                    // TODO: AI डायग्नोस्टिक स्कैन शुरू करें
+                    // <-- यहाँ मैंने नई स्क्रीन पर जाने का कोड जोड़ दिया है
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const MultiViewResultsScreen()),
+                    );
                   },
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
