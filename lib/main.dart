@@ -1,58 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'utils/theme.dart';
+import 'providers/obd_provider.dart';
+import 'providers/vehicle_provider.dart';
+import 'providers/ai_chat_provider.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
-  runApp(const MechaniQApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => VehicleProvider()),
+        ChangeNotifierProvider(create: (_) => ObdProvider()),
+        ChangeNotifierProvider(create: (_) => AIChatProvider()),
+      ],
+      child: const MechaniQApp(),
+    ),
+  );
 }
 
 class MechaniQApp extends StatelessWidget {
-  const MechaniQApp({super.key});
+  const MechaniQApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MechaniQ',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('MechaniQ'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(
-              Icons.build_circle_outlined,
-              size: 80,
-              color: Colors.blue,
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Welcome to MechaniQ',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Your automated build is configured successfully!',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-              textAlign: Center,
-            ),
-          ],
-        ),
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      home: const SplashScreen(),
     );
   }
 }
