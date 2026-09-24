@@ -1,9 +1,0 @@
-CRITICAL STEP TO PREVENT DUPLICATE CLASS ERRORS:
-
-Because we have migrated fully to Kotlin (MainActivity.kt), you must delete the old Java activity file if it exists.
-
-Please run the following command in your terminal/CI environment to delete it:
-
-rm -f android/app/src/main/java/com/mechaniq/app/MainActivity.java
-
-This ensures that the compiler only references the new Kotlin-based v2 embedding class and prevents duplicate class compilation errors on GitHub Actions.
