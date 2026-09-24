@@ -25,21 +25,11 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Nuke V1 Embedding
-        run: |
-          echo "Fixing Android files..."
-          rm -rf android/app/src/main/java
-          find android -type f -name "*.kt" -exec sed -i 's/io.flutter.app.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' {} +
-          find android -type f -name "AndroidManifest.xml" -exec sed -i 's/android:name="io.flutter.app.FlutterApplication"/android:name="${applicationName}"/g' {} +
-          if ! grep -q 'flutterEmbedding' android/app/src/main/AndroidManifest.xml; then
-            sed -i '/<\/application>/i \        <meta-data android:name="flutterEmbedding" android:value="2" />' android/app/src/main/AndroidManifest.xml
-          fi
+      - name: Install Dependencies
+        run: flutter pub get
 
       - name: Build Release APK
-        run: |
-          flutter clean
-          flutter pub get
-          flutter build apk --release
+        run: flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
