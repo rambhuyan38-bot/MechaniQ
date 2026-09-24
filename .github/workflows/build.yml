@@ -25,25 +25,17 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Magic Fix for Android V1 Error
+      - name: Nuke V1 Embedding
         run: |
-          echo "Scanning and fixing all Android files automatically..."
-          
-          # 1. पुरानी Java फाइलों का कचरा साफ करना
-          find android -name "*.java" -type f -delete
-          
-          # 2. Kotlin फाइल में सही V2 कोड अपडेट करना
-          find android -name "*.kt" -type f -exec sed -i 's/io.flutter.app.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' {} +
-          
-          # 3. Manifest में V2 टैग लगाना
-          find android -name "AndroidManifest.xml" -type f -exec sed -i 's/android:name="io.flutter.app.FlutterApplication"/android:name="${applicationName}"/g' {} +
-          
-          # 4. अगर flutterEmbedding लाइन मिसिंग है, तो उसे ऑटोमैटिकली डालना
-          if ! grep -q 'android:name="flutterEmbedding"' android/app/src/main/AndroidManifest.xml; then
+          echo "Fixing Android files..."
+          rm -rf android/app/src/main/java
+          find android -type f -name "*.kt" -exec sed -i 's/io.flutter.app.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' {} +
+          find android -type f -name "AndroidManifest.xml" -exec sed -i 's/android:name="io.flutter.app.FlutterApplication"/android:name="${applicationName}"/g' {} +
+          if ! grep -q 'flutterEmbedding' android/app/src/main/AndroidManifest.xml; then
             sed -i '/<\/application>/i \        <meta-data android:name="flutterEmbedding" android:value="2" />' android/app/src/main/AndroidManifest.xml
           fi
 
-      - name: Clean and Build Release APK
+      - name: Build Release APK
         run: |
           flutter clean
           flutter pub get
