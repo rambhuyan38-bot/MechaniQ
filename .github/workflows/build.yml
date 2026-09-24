@@ -25,9 +25,11 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install Dependencies
-        run: flutter pub get
-
+      - name: Force Fix Android V1 Ghost Files
+        run: |
+          echo "Purana Java folder aur kachra hata rahe hain..."
+          rm -rf android/app/src/main/java
+          
       - name: Clean and Build Release APK
         run: |
           flutter clean
