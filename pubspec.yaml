@@ -12,8 +12,8 @@ dependencies:
   http: ^1.2.0
   sqflite: ^2.3.0
   path: ^1.8.3
-  google_fonts: ^6.1.0       # <-- Yeh naya package joda gaya hai
-  flutter_spinkit: ^8.1.0    # <-- Yeh naya package joda gaya hai
+  google_fonts: ^6.1.0
+  flutter_spinkit: ^5.2.2    # <-- Ise correct kar diya gaya hai
 
 dev_dependencies:
   flutter_test:
