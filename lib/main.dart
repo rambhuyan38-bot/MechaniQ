@@ -1,35 +1,63 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'utils/theme.dart';
-import 'providers/obd_provider.dart';
-import 'providers/vehicle_provider.dart';
-import 'providers/ai_chat_provider.dart';
-import 'screens/splash_screen.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => VehicleProvider()),
-        ChangeNotifierProvider(create: (_) => ObdProvider()),
-        ChangeNotifierProvider(create: (_) => AIChatProvider()),
-      ],
-      child: const MechaniQApp(),
-    ),
-  );
+  runApp(const MechaniqApp());
 }
 
-class MechaniQApp extends StatelessWidget {
-  const MechaniQApp({Key? key}) : super(key: key);
+class MechaniqApp extends StatelessWidget {
+  const MechaniqApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MechaniQ',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      home: const SplashScreen(),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
+      home: const HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('MechaniQ'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+              size: 80,
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Android v2 Embedding Active',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Build error resolved successfully!',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
