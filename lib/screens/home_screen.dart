@@ -1,8 +1,6 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/vehicle.dart';
-import '../services/obd_service.dart';
-import '../localization/app_localizations.dart';
 import 'multi_view_results_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -13,345 +11,392 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _scannerController;
-  bool _isScanning = false;
-  String _currentStep = 'Idle';
+  late AnimationController _pulseController;
+  late StreamController<Map<String, double>> _telemetryController;
+  Timer? _telemetryTimer;
+  final Random _random = Random();
+
+  double _batteryVoltage = 13.8;
+  double _engineTemp = 92.0;
+  double _rpm = 2400.0;
+  double _speed = 65.0;
+  double _healthScore = 94.0;
 
   @override
   void initState() {
     super.initState();
-    _scannerController = AnimationController(
+    _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat();
+    )..repeat(reverse: true);
+
+    _telemetryController = StreamController<Map<String, double>>.broadcast();
+    _startTelemetryMock();
+  }
+
+  void _startTelemetryMock() {
+    _telemetryTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
+      _batteryVoltage = 13.5 + _random.nextDouble() * 1.2;
+      _engineTemp = 88.0 + _random.nextDouble() * 12.0;
+      _rpm = 1800.0 + _random.nextDouble() * 1200.0;
+      _speed = 50.0 + _random.nextDouble() * 40.0;
+      
+      if (_engineTemp > 98.0 || _batteryVoltage < 13.6) {
+        _healthScore = max(70.0, _healthScore - 0.5);
+      } else {
+        _healthScore = min(100.0, _healthScore + 0.2);
+      }
+
+      if (!_telemetryController.isClosed) {
+        _telemetryController.add({
+          'battery': _batteryVoltage,
+          'temp': _engineTemp,
+          'rpm': _rpm,
+          'speed': _speed,
+          'health': _healthScore,
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _scannerController.dispose();
+    _pulseController.dispose();
+    _telemetryTimer?.cancel();
+    _telemetryController.close();
     super.dispose();
-  }
-
-  void _triggerDiagnosticScan(Vehicle vehicle) async {
-    final obd = Provider.of<ObdService>(context, listen: false);
-    if (!obd.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please connect to ELM327 Adapter first!')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isScanning = true;
-      _currentStep = 'Executing Honda Custom Init sequence...';
-    });
-    
-    await obd.executeHondaInitSequence();
-    
-    setState(() => _currentStep = 'Querying generic/custom PIDs...');
-    await Future.delayed(const Duration(seconds: 1));
-    
-    setState(() => _currentStep = 'Parsing real-time sensors...');
-    final dtcs = await obd.scanDtcCodes(vehicle);
-
-    setState(() {
-      _isScanning = false;
-      _currentStep = 'Idle';
-    });
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => MultiViewResultsScreen(
-          vehicle: vehicle,
-          dtcCodes: dtcs,
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-    final obd = Provider.of<ObdService>(context);
-    final vehicle = (ModalRoute.of(context)!.settings.arguments as Vehicle?) ??
-        Vehicle(type: 'Car', brand: 'Tata', model: 'Nexon', year: 2022, fuelType: 'EV');
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(loc.translate('title'), style: const TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings_input_antenna, color: obd.isConnected ? const Color(0xFF00FF87) : Colors.red),
-            onPressed: () => _showConnectionManager(context, obd),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF0A0E14), Color(0xFF121B29)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-        ],
-      ),
-      body: StreamBuilder<Map<String, double>>(
-        stream: obd.telemetryStream,
-        builder: (context, snapshot) {
-          final data = snapshot.data ?? {'RPM': 0.0, 'Speed': 0.0, 'Temp': 0.0, 'Battery': 12.6};
-          return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildVehicleHeader(vehicle),
-                  const SizedBox(height: 20),
-                  _buildHealthIndicator(),
-                  const SizedBox(height: 24),
-                  _buildTelemetryGrid(data, loc),
-                  const SizedBox(height: 40),
-                  Center(
-                    child: _isScanning
-                        ? _buildRadarAnimation()
-                        : _buildScanButton(vehicle, loc),
-                  ),
-                  if (_isScanning) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      _currentStep,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Color(0xFF00F2FE), fontWeight: FontWeight.bold),
+        ),
+        child: SafeArea(
+          child: StreamBuilder<Map<String, double>>(
+            stream: _telemetryController.stream,
+            initialData: {
+              'battery': _batteryVoltage,
+              'temp': _engineTemp,
+              'rpm': _rpm,
+              'speed': _speed,
+              'health': _healthScore,
+            },
+            builder: (context, snapshot) {
+              final data = snapshot.data!;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildHeader(),
+                    const SizedBox(height: 30),
+                    _buildHealthScoreWidget(data['health']!),
+                    const SizedBox(height: 40),
+                    Expanded(
+                      child: _buildTelemetryGrid(data),
                     ),
-                  ]
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildVehicleHeader(Vehicle vehicle) {
-    return Card(
-      color: const Color(0xFF1F2833),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            Icon(
-              vehicle.type == 'EV' ? Icons.electric_car : Icons.directions_car,
-              size: 40,
-              color: const Color(0xFF00F2FE),
-            ),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${vehicle.brand} ${vehicle.model}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    _buildScanButton(context),
+                    const SizedBox(height: 30),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${vehicle.year} | ${vehicle.fuelType} Profile Loaded',
-                  style: const TextStyle(color: Color(0xFFC5C6C7), fontSize: 13),
-                ),
-              ],
-            )
-          ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHealthIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2833),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF00FF87).withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'MECHANIQ',
+              style: TextStyle(
+                fontFamily: 'Courier',
+                fontWeight: FontWeight.black,
+                fontSize: 26,
+                letterSpacing: 2,
+                color: Color(0xFF00FFCC),
+              ),
+            ),
+            Text(
+              'AI Vehicle Diagnostician',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 12,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, py: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF151D2A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF00FFCC).withOpacity(0.3)),
+          ),
+          child: const Row(
             children: [
-              Text('Vehicle Health Status', style: TextStyle(fontSize: 14, color: Color(0xFFC5C6C7))),
-              SizedBox(height: 4),
-              Text('EXCELLENT', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF00FF87))),
+              Icon(Icons.wifi_tethering, color: Color(0xFF00FFCC), size: 16),
+              SizedBox(width: 6),
+              Text(
+                'OBD-II LIVE',
+                style: TextStyle(
+                  color: Color(0xFF00FFCC),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildHealthScoreWidget(double score) {
+    Color scoreColor = const Color(0xFF00FFCC);
+    if (score < 80) {
+      scoreColor = const Color(0xFFFFB300);
+    } else if (score < 60) {
+      scoreColor = const Color(0xFFFF3366);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151D2A),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: scoreColor.withOpacity(0.05),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Row(
+        children: [
           Stack(
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 60,
-                height: 60,
+                width: 110,
+                height: 110,
                 child: CircularProgressIndicator(
-                  value: 0.96,
-                  strokeWidth: 6,
-                  backgroundColor: Colors.grey[800],
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00FF87)),
+                  value: score / 100,
+                  strokeWidth: 10,
+                  backgroundColor: Colors.white.withOpacity(0.05),
+                  valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
                 ),
               ),
-              const Text('96%', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    score.toStringAsFixed(0),
+                    style: const TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Text(
+                    'HEALTH',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
             ],
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Diagnostic Status',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  score >= 90
+                      ? 'All Systems Nominal'
+                      : score >= 75
+                          ? 'Minor Attention Required'
+                          : 'Critical Faults Detected',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: scoreColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Continuous real-time stream analysis of OBD-II signals active.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.5),
+                  ),
+                ),
+              ],
+            ),
           )
         ],
       ),
     );
   }
 
-  Widget _buildTelemetryGrid(Map<String, double> data, AppLocalizations loc) {
+  Widget _buildTelemetryGrid(Map<String, double> data) {
     return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      childAspectRatio: 1.5,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.3,
+      physics: const NeverScrollableScrollPhysics(),
       children: [
-        _telemetryCard(loc.translate('battery_voltage'), '${data['Battery']} V', Icons.battery_charging_full, const Color(0xFF00FF87)),
-        _telemetryCard(loc.translate('engine_temp'), '${data['Temp']} °C', Icons.thermostat, Colors.orange),
-        _telemetryCard(loc.translate('rpm'), '${data['RPM']}', Icons.speed, const Color(0xFF00F2FE)),
-        _telemetryCard(loc.translate('speed'), '${data['Speed']} km/h', Icons.shutter_speed, Colors.purple),
+        _buildTelemetryCard(
+          'BATTERY',
+          '${data['battery']!.toStringAsFixed(1)} V',
+          Icons.battery_charging_full_rounded,
+          const Color(0xFF00E5FF),
+        ),
+        _buildTelemetryCard(
+          'ENGINE TEMP',
+          '${data['temp']!.toStringAsFixed(0)} °C',
+          Icons.thermostat_rounded,
+          const Color(0xFFFFB300),
+        ),
+        _buildTelemetryCard(
+          'RPM',
+          data['rpm']!.toStringAsFixed(0),
+          Icons.speed_rounded,
+          const Color(0xFF00FFCC),
+        ),
+        _buildTelemetryCard(
+          'SPEED',
+          '${data['speed']!.toStringAsFixed(0)} km/h',
+          Icons.speedometer,
+          const Color(0xFFFF3366),
+        ),
       ],
     );
   }
 
-  Widget _telemetryCard(String title, String val, IconData icon, Color color) {
-    return Card(
-      color: const Color(0xFF1F2833),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _buildTelemetryCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151D2A),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                  color: Colors.grey,
+                ),
+              ),
+              Icon(icon, color: color, size: 20),
+            ],
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScanButton(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00FFCC).withOpacity(0.15 * _pulseController.value),
+                blurRadius: 20,
+                spreadRadius: 10 * _pulseController.value,
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MultiViewResultsScreen(),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00FFCC),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 5,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(color: Color(0xFFC5C6C7), fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
+                Icon(Icons.radar_rounded, size: 24, color: Colors.black),
+                SizedBox(width: 10),
+                Text(
+                  'SCAN NOW',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.black,
+                    letterSpacing: 2,
+                    color: Colors.black,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(val, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScanButton(Vehicle vehicle, AppLocalizations loc) {
-    return GestureDetector(
-      onTap: () => _triggerDiagnosticScan(vehicle),
-      child: Container(
-        width: 160,
-        height: 160,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF00F2FE), Color(0xFF00FF87)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF00F2FE).withOpacity(0.4),
-              blurRadius: 20,
-              spreadRadius: 5,
-            )
-          ],
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.security, size: 48, color: Colors.black),
-            const SizedBox(height: 8),
-            Text(
-              loc.translate('scan_now'),
-              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRadarAnimation() {
-    return AnimatedBuilder(
-      animation: _scannerController,
-      builder: (context, child) {
-        return Container(
-          width: 160,
-          height: 160,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xFF00F2FE).withOpacity(1 - _scannerController.value),
-              width: _scannerController.value * 8,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: const Icon(Icons.bolt, size: 64, color: Color(0xFF00FF87)),
-        );
-      },
-    );
-  }
-
-  void _showConnectionManager(BuildContext context, ObdService obd) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1F2833),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'ELM327 Connection Manager',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00F2FE)),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              _connectionOption(context, obd, 'Bluetooth Classic', Icons.bluetooth),
-              _connectionOption(context, obd, 'BLE (Smart Bluetooth)', Icons.bluetooth_searching),
-              _connectionOption(context, obd, 'Wi-Fi Socket (192.168.0.10)', Icons.wifi),
-              const SizedBox(height: 20),
-              if (obd.isConnected)
-                ElevatedButton(
-                  onPressed: () {
-                    obd.disconnect();
-                    Navigator.of(context).pop();
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: const Text('DISCONNECT ADAPTER', style: TextStyle(color: Colors.white)),
-                )
-            ],
           ),
         );
-      },
-    );
-  }
-
-  Widget _connectionOption(BuildContext context, ObdService obd, String protocol, IconData icon) {
-    return ListTile(
-      leading: Icon(icon, color: const Color(0xFF00FF87)),
-      title: Text(protocol, style: const TextStyle(color: Colors.white)),
-      trailing: obd.isConnected && obd.connectionType == protocol
-          ? const Icon(Icons.check_circle, color: Color(0xFF00FF87))
-          : const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-      onTap: () async {
-        await obd.connect(protocol);
-        Navigator.of(context).pop();
       },
     );
   }
