@@ -1,16 +1,19 @@
-name: mechaniq
-description: "MechaniQ - Auto Repair & Service Application"
-publish_to: "none"
-
+name: mechaniq_app
+description: "MechaniQ - Elite AI-Powered OBD2 Diagnostic System"
+publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  provider: ^6.1.1
+  google_fonts: ^6.1.0
+  fl_chart: ^0.66.0
+  flutter_spinkit: ^5.2.0
 
 dev_dependencies:
   flutter_test:
