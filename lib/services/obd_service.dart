@@ -1,96 +1,166 @@
 import 'dart:async';
-import 'dart:math';
-import '../database/db_helper.dart';
-import '../models/vehicle.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
+class ObdTelemetry {
+  final double rpm;
+  final double speed;
+  final double coolantTemp;
+  final double voltage;
+
+  ObdTelemetry({
+    required this.rpm,
+    required this.speed,
+    required this.coolantTemp,
+    required this.voltage,
+  });
+}
 
 class ObdService {
-  bool _isConnected = false;
-  String _connectionType = "None"; // Bluetooth, BLE, Wi-Fi
-  final _telemetryStreamController = StreamController<Map<String, double>>.broadcast();
+  BluetoothDevice? _connectedDevice;
+  BluetoothCharacteristic? _writeCharacteristic;
+  BluetoothCharacteristic? _readCharacteristic;
+  
+  StreamSubscription<List<int>>? _readSubscription;
+  final StreamController<ObdTelemetry> _telemetryStreamController = StreamController<ObdTelemetry>.broadcast();
 
-  bool get isConnected => _isConnected;
-  String get connectionType => _connectionType;
-  Stream<Map<String, double>> get telemetryStream => _telemetryStreamController.stream;
+  Stream<ObdTelemetry> get telemetryStream => _telemetryStreamController.stream;
 
-  Future<bool> connect(String type) async {
-    _connectionType = type;
-    await Future.delayed(const Duration(seconds: 2)); // Simulate connection latency
-    _isConnected = true;
-    _startTelemetryEmulation();
-    return true;
+  Future<void> startOBDScan() async {
+    await FlutterBluePlus.startScan(
+      withServices: [Guid("00001101-0000-1000-8000-00805f9b34fb")], // Serial Port Profile (SPP) UUID typically used by ELM327
+      timeout: const Duration(seconds: 10),
+    );
   }
 
-  void disconnect() {
-    _isConnected = false;
-    _connectionType = "None";
-  }
-
-  // Parses Honda custom Init sequences from local SQLite storage
-  Future<List<String>> executeHondaInitSequence() async {
-    final sequence = await DbHelper.instance.getHondaInitSequence();
-    List<String> logs = [];
-    for (var step in sequence) {
-      String hex = step['hex_command'] as String;
-      int delay = step['delay_ms'] as int;
-      logs.add("Executing: $hex (Delay: ${delay}ms)");
-      await Future.delayed(Duration(milliseconds: delay));
-      logs.add("Honda ECU Response: OK/ACK");
-    }
-    return logs;
-  }
-
-  // Parse Raw Hex Response based on PID formulas from DB
-  double parseHexRaw(String responseHex, PidMetadata metadata) {
-    if (responseHex.length < 2) return 0.0;
-    // Mock robust parsing depending on Formula criteria
-    if (metadata.formula.contains("((A*256)+B)/4")) {
-      int a = int.parse(responseHex.substring(0, 2), radix: 16);
-      int b = int.parse(responseHex.substring(2, 4), radix: 16);
-      return ((a * 256) + b) / 4.0;
-    } else if (metadata.formula.contains("A-40")) {
-      int a = int.parse(responseHex.substring(0, 2), radix: 16);
-      return (a - 40).toDouble();
-    } else if (metadata.formula.contains("A")) {
-      int a = int.parse(responseHex.substring(0, 2), radix: 16);
-      return a.toDouble();
-    }
-    return 0.0;
-  }
-
-  void _startTelemetryEmulation() {
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isConnected) {
-        timer.cancel();
-        return;
+  Future<bool> connectToObd(BluetoothDevice device) async {
+    try {
+      await device.connect();
+      _connectedDevice = device;
+      
+      List<BluetoothService> services = await device.discoverServices();
+      for (var service in services) {
+        for (var characteristic in service.characteristics) {
+          if (characteristic.properties.write) {
+            _writeCharacteristic = characteristic;
+          }
+          if (characteristic.properties.notify || characteristic.properties.indicate) {
+            _readCharacteristic = characteristic;
+            await characteristic.setNotifyValue(true);
+            _listenToDataStream(characteristic);
+          }
+        }
       }
-      final rand = Random();
-      final rpm = 1200.0 + rand.nextDouble() * 3200.0;
-      final speed = 40.0 + rand.nextDouble() * 80.0;
-      final temp = 85.0 + rand.nextDouble() * 15.0;
-      final battery = 13.4 + rand.nextDouble() * 1.1;
 
-      _telemetryStreamController.add({
-        'RPM': double.parse(rpm.toStringAsFixed(1)),
-        'Speed': double.parse(speed.toStringAsFixed(1)),
-        'Temp': double.parse(temp.toStringAsFixed(1)),
-        'Battery': double.parse(battery.toStringAsFixed(2))
-      });
+      if (_writeCharacteristic != null && _readCharacteristic != null) {
+        await initializeElm327();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  void _listenToDataStream(BluetoothCharacteristic characteristic) {
+    _readSubscription = characteristic.lastValueStream.listen((value) {
+      _parseRawObdData(value);
     });
   }
 
-  Future<List<String>> scanDtcCodes(Vehicle vehicle) async {
-    await Future.delayed(const Duration(seconds: 3));
-    // Provide diagnostic codes depending on fuel/vehicle type
-    if (vehicle.fuelType == 'EV') {
-      return ['P0A80'];
-    } else {
-      return ['P0100', 'P0300'];
+  Future<void> initializeElm327() async {
+    // Standard initialization AT commands sequence for ELM327
+    await _sendCommand('ATZ\r');    // Reset All
+    await _sendCommand('ATE0\r');   // Echo off
+    await _sendCommand('ATL0\r');   // Linefeeds off
+    await _sendCommand('ATSP0\r');  // Protocol Select Auto
+  }
+
+  Future<void> _sendCommand(String cmd) async {
+    if (_writeCharacteristic != null) {
+      final List<int> bytes = cmd.codeUnits;
+      await _writeCharacteristic!.write(bytes, withoutResponse: false);
     }
   }
 
-  Future<bool> clearDtcCodes() async {
-    // Service 04 simulation
-    await Future.delayed(const Duration(seconds: 2));
-    return true;
+  /// Read dynamic Engine Parameters from OBD-II
+  Future<void> requestTelemetryFrame() async {
+    await _sendCommand('010C\r'); // Request Engine Speed (RPM)
+    await Future.delayed(const Duration(milliseconds: 100));
+    await _sendCommand('010D\r'); // Request Vehicle Speed
+    await Future.delayed(const Duration(milliseconds: 100));
+    await _sendCommand('0105\r'); // Request Engine Coolant Temp
+    await Future.delayed(const Duration(milliseconds: 100));
+    await _sendCommand('0142\r'); // Request Control Module Voltage
+  }
+
+  void _parseRawObdData(List<int> rawBytes) {
+    final String responseStr = String.fromCharCodes(rawBytes).trim();
+    if (responseStr.isEmpty || responseStr.contains('NO DATA') || responseStr.contains('?')) {
+      return;
+    }
+
+    // Clean OBD-II spacing
+    final String sanitized = responseStr.replaceAll(' ', '');
+    
+    double rpm = 0.0;
+    double speed = 0.0;
+    double temp = 0.0;
+    double voltage = 12.6;
+
+    // Direct string matching and Hex parsing (Strictly avoiding JSON serialization)
+    if (sanitized.contains('410C')) { // Mode 1 PID 0C Engine RPM Response
+      final int idx = sanitized.indexOf('410C');
+      if (sanitized.length >= idx + 8) {
+        final String hexBytes = sanitized.substring(idx + 4, idx + 8);
+        final int? a = int.tryParse(hexBytes.substring(0, 2), radix: 16);
+        final int? b = int.tryParse(hexBytes.substring(2, 4), radix: 16);
+        if (a != null && b != null) {
+          rpm = ((a * 256) + b) / 4.0;
+        }
+      }
+    } else if (sanitized.contains('410D')) { // Mode 1 PID 0D Vehicle Speed Response
+      final int idx = sanitized.indexOf('410D');
+      if (sanitized.length >= idx + 6) {
+        final String hexByte = sanitized.substring(idx + 4, idx + 6);
+        final int? a = int.tryParse(hexByte, radix: 16);
+        if (a != null) {
+          speed = a.toDouble();
+        }
+      }
+    } else if (sanitized.contains('4105')) { // Mode 1 PID 05 Coolant Temperature Response
+      final int idx = sanitized.indexOf('4105');
+      if (sanitized.length >= idx + 6) {
+        final String hexByte = sanitized.substring(idx + 4, idx + 6);
+        final int? a = int.tryParse(hexByte, radix: 16);
+        if (a != null) {
+          temp = (a - 40).toDouble();
+        }
+      }
+    } else if (sanitized.contains('4142')) { // Mode 1 PID 42 Control Module Voltage Response
+      final int idx = sanitized.indexOf('4142');
+      if (sanitized.length >= idx + 8) {
+        final String hexBytes = sanitized.substring(idx + 4, idx + 8);
+        final int? a = int.tryParse(hexBytes.substring(0, 2), radix: 16);
+        final int? b = int.tryParse(hexBytes.substring(2, 4), radix: 16);
+        if (a != null && b != null) {
+          voltage = ((a * 256) + b) / 1000.0;
+        }
+      }
+    }
+
+    _telemetryStreamController.add(ObdTelemetry(
+      rpm: rpm,
+      speed: speed,
+      coolantTemp: temp,
+      voltage: voltage,
+    ));
+  }
+
+  Future<void> disconnect() async {
+    await _readSubscription?.cancel();
+    if (_connectedDevice != null) {
+      await _connectedDevice!.disconnect();
+      _connectedDevice = null;
+    }
   }
 }
