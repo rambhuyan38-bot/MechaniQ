@@ -25,12 +25,6 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Cache Android Keystore
-        uses: actions/cache@v3
-        with:
-          path: ~/.android/debug.keystore
-          key: mechaniq-keystore-permanent-v1
-
       - name: The Ultimate Android Master Reset
         run: |
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml || true
@@ -51,10 +45,12 @@ jobs:
           name: MechaniQ-Release-APK
           path: build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Print Firebase Keys Directly From APK
+      - name: Print Firebase Keys (Official Way)
         run: |
           echo "========================================================"
           echo "🔥 COPY THESE KEYS TO YOUR FIREBASE CONSOLE 🔥"
           echo "========================================================"
-          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk || true
+          cd android
+          chmod +x gradlew
+          ./gradlew signingReport
           echo "========================================================"
