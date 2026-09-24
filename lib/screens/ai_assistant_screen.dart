@@ -1,139 +1,162 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/ai_chat_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_colors.dart';
 
-class AIAssistantScreen extends StatefulWidget {
-  const AIAssistantScreen({Key? key}) : super(key: key);
+class AiAssistantScreen extends StatefulWidget {
+  const AiAssistantScreen({Key? key}) : super(key: key);
 
   @override
-  _AIAssistantScreenState createState() => _AIAssistantScreenState();
+  _AiAssistantScreenState createState() => _AiAssistantScreenState();
 }
 
-class _AIAssistantScreenState extends State<AIAssistantScreen> {
-  final TextEditingController _textController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+class _AiAssistantScreenState extends State<AiAssistantScreen> {
+  final TextEditingController _messageController = TextEditingController();
+  final List<Map<String, String>> _messages = []; // चैट हिस्ट्री सेव करने के लिए
 
-  void _sendMessage(AIChatProvider provider) {
-    if (_textController.text.isNotEmpty) {
-      provider.sendMessage(_textController.text);
-      _textController.clear();
-      Future.delayed(const Duration(milliseconds: 300), () {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+  @override
+  void initState() {
+    super.initState();
+    // वेलकम मैसेज
+    _messages.add({
+      "sender": "ai",
+      "text": "Hello! I am MechaniQ AI. How can I help you with your vehicle today?"
+    });
+  }
+
+  void _sendMessage() {
+    String text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      // यूज़र का मैसेज ऐड करें
+      _messages.add({"sender": "user", "text": text});
+      _messageController.clear();
+    });
+
+    // AI का डमी रिप्लाई (बाद में इसे Cloudflare से जोड़ेंगे)
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        setState(() {
+          _messages.add({
+            "sender": "ai",
+            "text": "I am analyzing your query regarding '$text'. Based on standard OBD2 protocols, this might require a diagnostic scan. Please connect your ELM327 scanner."
+          });
+        });
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final aiChatProvider = Provider.of<AIChatProvider>(context);
-
     return Scaffold(
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
-        title: const Text('MECHANIQ AI'),
-        backgroundColor: Colors.transparent,
-        elevation: 0.0,
-        centerTitle: true,
+        backgroundColor: const Color(0xFF14243B),
+        elevation: 0,
+        title: Row(
+          children: [
+            const Icon(Icons.smart_toy, color: AppColors.primaryNeonBlue),
+            const SizedBox(width: 10),
+            Text(
+              'MechaniQ AI',
+              style: GoogleFonts.orbitron(
+                color: AppColors.primaryNeonBlue,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
       body: Column(
         children: [
+          // चैट लिस्ट
           Expanded(
             child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16.0),
-              itemCount: aiChatProvider.messages.length,
+              padding: const EdgeInsets.all(15),
+              itemCount: _messages.length,
               itemBuilder: (context, index) {
-                final chat = aiChatProvider.messages[index];
-                return Align(
-                  alignment: chat.isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    padding: const EdgeInsets.all(14.0),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    decoration: BoxDecoration(
-                      color: chat.isUser ? AppColors.primaryNeonBlue.withOpacity(0.12) : AppColors.cardBackground,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16.0),
-                        topRight: const Radius.circular(16.0),
-                        bottomLeft: chat.isUser ? const Radius.circular(16.0) : const Radius.circular(0),
-                        bottomRight: chat.isUser ? const Radius.circular(0) : const Radius.circular(16.0),
-                      ),
-                      border: Border.all(
-                        color: chat.isUser ? AppColors.primaryNeonBlue : AppColors.borderCyan.withOpacity(0.3),
-                        width: 1.0,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          chat.isUser ? "YOU" : "MECHANIQ ENGINE AI",
-                          style: TextStyle(
-                            fontSize: 10.0,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.0,
-                            color: chat.isUser ? AppColors.primaryNeonBlue : AppColors.secondaryNeonOrange,
-                          ),
-                        ),
-                        const SizedBox(height: 6.0),
-                        Text(
-                          chat.messageText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.0,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                bool isUser = _messages[index]["sender"] == "user";
+                return _buildChatBubble(_messages[index]["text"]!, isUser);
               },
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: const BoxDecoration(
-              color: AppColors.cardBackground,
-              border: Border(
-                top: BorderSide(color: AppColors.borderCyan, width: 1.0),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    decoration: InputDecoration(
-                      hintText: "Type symptom (e.g. rough misfiring idle)...",
-                      hintStyle: const TextStyle(color: AppColors.textSecondary),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30.0),
-                        borderSide: const BorderSide(color: AppColors.borderCyan),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30.0),
-                        borderSide: const BorderSide(color: AppColors.primaryNeonBlue),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
-                    ),
-                    onSubmitted: (_) => _sendMessage(aiChatProvider),
+          // मैसेज टाइप करने का बॉक्स
+          _buildMessageInput(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatBubble(String text, bool isUser) {
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isUser ? AppColors.primaryNeonBlue.withOpacity(0.2) : const Color(0xFF14243B),
+          border: Border.all(color: isUser ? AppColors.primaryNeonBlue : Colors.white10),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(15),
+            topRight: const Radius.circular(15),
+            bottomLeft: isUser ? const Radius.circular(15) : const Radius.circular(0),
+            bottomRight: isUser ? const Radius.circular(0) : const Radius.circular(15),
+          ),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.spaceGrotesk(
+            color: isUser ? Colors.white : Colors.white70,
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFF14243B),
+        border: Border(top: BorderSide(color: Colors.white10)),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: "Ask about your car's problem...",
+                  hintStyle: GoogleFonts.spaceGrotesk(color: Colors.white38),
+                  filled: true,
+                  fillColor: AppColors.darkBackground,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide.none,
                   ),
                 ),
-                const SizedBox(width: 12.0),
-                FloatingActionButton(
-                  onPressed: () => _sendMessage(aiChatProvider),
-                  backgroundColor: AppColors.primaryNeonBlue,
-                  child: const Icon(Icons.send, color: AppColors.darkBackground),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Container(
+              decoration: const BoxDecoration(
+                color: AppColors.primaryNeonBlue,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.black),
+                onPressed: _sendMessage,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
