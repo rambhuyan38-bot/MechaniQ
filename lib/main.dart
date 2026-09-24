@@ -1,33 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'localization/app_localizations.dart';
-import 'services/obd_service.dart';
-import 'services/cloudflare_ai_service.dart';
-import 'screens/login_screen.dart';
-import 'screens/onboarding_screen.dart';
-import 'screens/home_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'lib/screens/login_screen.dart';
+import 'lib/screens/onboarding_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Safe Firebase Initialization for development setup
+  try {
+    await Firebase.initializeApp();
+    await FirebaseAppCheck.instance.activate(
+      webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
+    );
+  } catch (e) {
+    debugPrint("Firebase initialization bypassed or failed: $e");
+  }
+
   runApp(
     MultiProvider(
       providers: [
-        Provider<ObdService>(create: (_) => ObdService()),
-        Provider<CloudflareAIService>(create: (_) => CloudflareAIService()),
-        ChangeNotifierProvider<LocaleProvider>(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => AppStateProvider()),
       ],
       child: const MechaniQApp(),
     ),
   );
 }
 
-class LocaleProvider with ChangeNotifier {
-  Locale _locale = const Locale('en');
-  Locale get locale => _locale;
+class AppStateProvider extends ChangeNotifier {
+  bool _isAuthenticated = false;
+  String _selectedVehicle = "";
 
-  void changeLocale(String code) {
-    _locale = Locale(code);
+  bool get isAuthenticated => _isAuthenticated;
+  String get selectedVehicle => _selectedVehicle;
+
+  void authenticate(bool value) {
+    _isAuthenticated = value;
+    notifyListeners();
+  }
+
+  void updateVehicle(String vehicle) {
+    _selectedVehicle = vehicle;
     notifyListeners();
   }
 }
@@ -37,48 +54,112 @@ class MechaniQApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final localeProv = Provider.of<LocaleProvider>(context);
-
     return MaterialApp(
       title: 'MechaniQ',
       debugShowCheckedModeBanner: false,
-      locale: localeProv.locale,
-      localizationsDelegates: const [
-        AppLocalizationsDelegate(),
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('en', ''),
-        Locale('hi', ''),
-        Locale('mr', ''),
-        Locale('ta', ''),
-      ],
-      theme: ThemeData(
+      themeMode: ThemeMode.dark,
+      darkTheme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0B0C10),
-        primaryColor: const Color(0xFF00F2FE),
-        cardColor: const Color(0xFF1F2833),
+        scaffoldBackgroundColor: const Color(0xFF0A0B10),
+        primaryColor: const Color(0xFF00FFCC),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00F2FE),
-          secondary: Color(0xFF00FF87),
-          surface: Color(0xFF1F2833),
-          background: const Color(0xFF0B0C10),
+          primary: Color(0xFF00FFCC),
+          secondary: Color(0xFF00E5FF),
+          background: Color(0xFF0A0B10),
+          surface: Color(0xFF121420),
+          onBackground: Colors.white,
+          onSurface: Colors.white70,
         ),
-        textTheme: const TextTheme(
-          displayMedium: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24),
-          bodyLarge: TextStyle(color: Color(0xFFC5C6C7), fontSize: 16),
-          bodyMedium: TextStyle(color: Color(0xFFC5C6C7), fontSize: 14),
+        textTheme: GoogleFonts.orbitronTextTheme(
+          ThemeData.dark().textTheme,
+        ).copyWith(
+          bodyLarge: GoogleFonts.shareTechMono(
+            fontSize: 18,
+            color: Colors.white,
+          ),
+          bodyMedium: GoogleFonts.shareTechMono(
+            fontSize: 15,
+            color: Colors.white70,
+          ),
         ),
-        useMaterial3: true,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF16192B),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF1F2444)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF1F2444)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF00FFCC), width: 1.5),
+          ),
+          labelStyle: GoogleFonts.shareTechMono(color: Colors.white60),
+          hintStyle: GoogleFonts.shareTechMono(color: Colors.white30),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF00FFCC),
+            foregroundColor: const Color(0xFF0A0B10),
+            shadowColor: const Color(0xFF00FFCC).withOpacity(0.5),
+            elevation: 10,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            textStyle: GoogleFonts.orbitron(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ),
       ),
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) => const DummyHomeScreen(),
       },
+    );
+  }
+}
+
+class DummyHomeScreen extends StatelessWidget {
+  const DummyHomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = Provider.of<AppStateProvider>(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('MECHANIQ DASHBOARD', style: GoogleFonts.orbitron(color: const Color(0xFF00FFCC))),
+        backgroundColor: const Color(0xFF121420),
+        elevation: 0,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.check_circle_outline, color: Color(0xFF00E5FF), size: 100),
+              const SizedBox(height: 24),
+              Text(
+                'SYSTEM ACTIVATED',
+                style: GoogleFonts.orbitron(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Configured Vehicle: ${state.selectedVehicle.isEmpty ? "None" : state.selectedVehicle}',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.shareTechMono(fontSize: 18, color: const Color(0xFF00FFCC)),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
