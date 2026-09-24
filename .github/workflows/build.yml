@@ -25,17 +25,22 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Auto-Create Gradle Wrapper (Fix for filePermissions)
+      - name: The Ultimate Android Master Reset
         run: |
-          echo "Setting up Modern Gradle 8.7..."
-          mkdir -p android/gradle/wrapper
-          cat <<EOF > android/gradle/wrapper/gradle-wrapper.properties
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-all.zip
-          EOF
+          echo "1. Backing up your custom Manifest (Bluetooth & OBD Permissions)..."
+          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+          
+          echo "2. Nuking the old, broken Android architecture..."
+          rm -rf android/
+          
+          echo "3. Letting Flutter auto-generate a 100% perfect, modern Android folder..."
+          flutter create --platforms=android .
+          
+          echo "4. Restoring your Manifest permissions..."
+          cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          
+          echo "5. Fixing package name for Play Store compatibility..."
+          find android -type f -exec sed -i 's/com.example.mechaniq/com.mechaniq.app/g' {} +
 
       - name: Build Release APK
         run: |
