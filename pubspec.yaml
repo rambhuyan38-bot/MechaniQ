@@ -6,9 +6,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  provider: ^6.1.1
-  permission_handler: ^11.3.0  # <-- यहाँ मैंने परमिशन पैकेज जोड़ दिया है
-
+  permission_handler: ^11.3.0
+  http: ^1.2.0  # <-- यह नई लाइन जोड़ें
 dev_dependencies:
   flutter_test:
     sdk: flutter
