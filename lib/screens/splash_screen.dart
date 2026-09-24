@@ -3,7 +3,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart'; // <-- Permission Package
 import '../utils/app_colors.dart';
-import 'main_shell.dart';
+import 'onboarding_screen.dart'; // <-- यहाँ बदलाव हुआ है: अब यह Onboarding को इम्पोर्ट कर रहा है
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -38,13 +38,13 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     });
 
-    // अगर सारी परमिशन मिल गईं, तो MainShell पर ले जाएगा
+    // अगर सारी परमिशन मिल गईं, तो OnboardingScreen पर ले जाएगा
     if (allGranted) {
       if (mounted) {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation1, animation2) => const MainShell(),
+            pageBuilder: (context, animation1, animation2) => const OnboardingScreen(), // <-- यहाँ बदलाव हुआ है: MainShell की जगह OnboardingScreen आ गया
             transitionDuration: const Duration(milliseconds: 800),
             transitionsBuilder: (context, anim, secondAnim, child) {
               return FadeTransition(opacity: anim, child: child);
