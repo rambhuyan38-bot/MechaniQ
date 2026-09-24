@@ -1,4 +1,4 @@
-Name: Build MechaniQ APK
+name: Build MechaniQ APK
 
 on:
   push:
