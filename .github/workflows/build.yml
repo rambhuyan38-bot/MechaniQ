@@ -25,7 +25,6 @@ jobs:
         with:
           channel: 'stable'
 
-      # Yeh step GitHub ki chaabi ko permanent (lock) kar dega taaki baar-baar change na ho
       - name: Cache Android Keystore
         uses: actions/cache@v3
         with:
@@ -34,19 +33,10 @@ jobs:
 
       - name: The Ultimate Android Master Reset
         run: |
-          echo "1. Backing up your custom Manifest..."
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml || true
-          
-          echo "2. Nuking the old Android architecture..."
           rm -rf android/
-          
-          echo "3. Auto-generating modern Android folder..."
           flutter create --platforms=android .
-          
-          echo "4. Restoring Manifest permissions..."
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml || true
-          
-          echo "5. Fixing package name..."
           find android -type f -exec sed -i 's/com.example.mechaniq/com.mechaniq.app/g' {} +
 
       - name: Build Release APK
@@ -55,17 +45,16 @@ jobs:
           flutter pub get
           flutter build apk --release
 
-      # Yeh step aapko Firebase mein daalne ke liye SHA-1 aur SHA-256 nikal kar dega!
-      - name: Print Firebase SHA-1 and SHA-256 Keys
-        run: |
-          echo "========================================================"
-          echo "🔥 COPY THESE KEYS TO YOUR FIREBASE CONSOLE 🔥"
-          echo "========================================================"
-          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1:|SHA256:"
-          echo "========================================================"
-
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MechaniQ-Release-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Print Firebase Keys Directly From APK
+        run: |
+          echo "========================================================"
+          echo "🔥 COPY THESE KEYS TO YOUR FIREBASE CONSOLE 🔥"
+          echo "========================================================"
+          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk || true
+          echo "========================================================"
