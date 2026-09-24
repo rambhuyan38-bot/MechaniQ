@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart'; // <-- Permission Package
 import '../utils/app_colors.dart';
 import 'main_shell.dart';
 
@@ -15,23 +16,91 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToMain();
+    _checkPermissionsAndNavigate(); // <-- App खुलते ही Permission चेक करेगा
   }
 
-  void _navigateToMain() async {
+  // Permission Logic
+  Future<void> _checkPermissionsAndNavigate() async {
+    // 3 सेकंड तक आपका शानदार एनिमेशन दिखाएगा
     await Future.delayed(const Duration(seconds: 3));
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation1, animation2) => const MainShell(),
-        transitionDuration: const Duration(milliseconds: 800),
-        transitionsBuilder: (context, anim, secondAnim, child) {
-          return FadeTransition(opacity: anim, child: child);
-        },
-      ),
+
+    // Bluetooth और Location की परमिशन माँगेगा
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.location,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+    ].request();
+
+    bool allGranted = true;
+    statuses.forEach((permission, status) {
+      if (!status.isGranted) {
+        allGranted = false;
+      }
+    });
+
+    // अगर सारी परमिशन मिल गईं, तो MainShell पर ले जाएगा
+    if (allGranted) {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation1, animation2) => const MainShell(),
+            transitionDuration: const Duration(milliseconds: 800),
+            transitionsBuilder: (context, anim, secondAnim, child) {
+              return FadeTransition(opacity: anim, child: child);
+            },
+          ),
+        );
+      }
+    } else {
+      // अगर परमिशन नहीं मिली, तो वार्निंग डायलॉग दिखाएगा
+      if (mounted) {
+        _showPermissionDialog();
+      }
+    }
+  }
+
+  // Premium Warning Dialog (डार्क थीम के साथ)
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF14243B),
+          shape: RoundedRectangleBorder(
+            side: const BorderSide(color: AppColors.primaryNeonBlue, width: 1.5),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Text(
+            "Access Required",
+            style: GoogleFonts.orbitron(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "MechaniQ requires Location and Bluetooth permissions to scan and connect to your vehicle's OBD2 device.",
+            style: GoogleFonts.spaceGrotesk(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              child: Text("Settings", style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontWeight: FontWeight.bold)),
+              onPressed: () {
+                openAppSettings(); // फोन की सेटिंग खोल देगा
+              },
+            ),
+            TextButton(
+              child: Text("Retry", style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.pop(context);
+                _checkPermissionsAndNavigate(); // दोबारा चेक करेगा
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
+  // आपका ओरिजिनल शानदार UI (इसमें कोई बदलाव नहीं किया है)
   @override
   Widget build(BuildContext context) {
     return Scaffold(
