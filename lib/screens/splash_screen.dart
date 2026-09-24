@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:permission_handler/permission_handler.dart'; // <-- Permission Package
+import 'package:permission_handler/permission_handler.dart'; 
 import '../utils/app_colors.dart';
-import 'onboarding_screen.dart'; // <-- यहाँ बदलाव हुआ है: अब यह Onboarding को इम्पोर्ट कर रहा है
+import 'login_screen.dart'; // <-- यहाँ बदलाव हुआ है: अब यह LoginScreen को इम्पोर्ट कर रहा है
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -16,7 +16,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkPermissionsAndNavigate(); // <-- App खुलते ही Permission चेक करेगा
+    _checkPermissionsAndNavigate(); 
   }
 
   // Permission Logic
@@ -38,13 +38,13 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     });
 
-    // अगर सारी परमिशन मिल गईं, तो OnboardingScreen पर ले जाएगा
+    // अगर सारी परमिशन मिल गईं, तो LoginScreen पर ले जाएगा
     if (allGranted) {
       if (mounted) {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation1, animation2) => const OnboardingScreen(), // <-- यहाँ बदलाव हुआ है: MainShell की जगह OnboardingScreen आ गया
+            pageBuilder: (context, animation1, animation2) => const LoginScreen(), // <-- यहाँ बदलाव हुआ है: Onboarding की जगह LoginScreen आ गया
             transitionDuration: const Duration(milliseconds: 800),
             transitionsBuilder: (context, anim, secondAnim, child) {
               return FadeTransition(opacity: anim, child: child);
@@ -84,14 +84,14 @@ class _SplashScreenState extends State<SplashScreen> {
             TextButton(
               child: Text("Settings", style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontWeight: FontWeight.bold)),
               onPressed: () {
-                openAppSettings(); // फोन की सेटिंग खोल देगा
+                openAppSettings(); 
               },
             ),
             TextButton(
               child: Text("Retry", style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontWeight: FontWeight.bold)),
               onPressed: () {
                 Navigator.pop(context);
-                _checkPermissionsAndNavigate(); // दोबारा चेक करेगा
+                _checkPermissionsAndNavigate(); 
               },
             ),
           ],
