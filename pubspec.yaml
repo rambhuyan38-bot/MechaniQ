@@ -1,6 +1,6 @@
 name: mechaniq
-description: "MechaniQ - Premium Smart AI OBD2 App for BS6 Vehicles and EVs in India"
-publish_to: 'none'
+description: "MechaniQ - Premium AI Vehicle Doctor App"
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
@@ -9,17 +9,22 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
-  provider: ^6.0.5
+  cupertino_icons: ^1.0.6
+  flutter_blue_plus: ^1.31.4
+  http: ^1.2.0
   sqflite: ^2.3.0
-  path: ^1.8.3
-  crypto: ^3.0.3
+  path_provider: ^2.1.1
+  firebase_core: ^2.24.0
+  firebase_auth: ^4.15.0
+  firebase_app_check: ^0.2.10
+  provider: ^6.1.1
+  fl_chart: ^0.66.0
+  google_fonts: ^6.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.1
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
