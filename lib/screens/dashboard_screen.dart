@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_colors.dart';
+import '../services/obd_service.dart'; // <-- OBD सर्विस को यहाँ इम्पोर्ट किया है
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -10,9 +11,67 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // डमी डेटा (बाद में इसे असली OBD डेटा से बदलेंगे)
+  final OBDService _obdService = OBDService(); // सर्विस का इंस्टेंस
+  
   bool isConnected = false;
   int healthScore = 95;
+  
+  // टेलीमेट्री डेटा के लिए वेरिएबल्स
+  String rpm = "0";
+  String speed = "0";
+  String temp = "---";
+  String battery = "12.4";
+
+  @override
+  void initState() {
+    super.initState();
+    // OBD सर्विस की स्ट्रीम को सुनना शुरू करें
+    _obdService.telemetryStream.listen((data) {
+      if (mounted) {
+        setState(() {
+          rpm = data['rpm'];
+          speed = data['speed'];
+          temp = data['temp'];
+          battery = data['battery'];
+        });
+      }
+    });
+  }
+
+  // ब्लूटूथ कनेक्ट करने का फंक्शन
+  Future<void> _toggleConnection() async {
+    if (isConnected) {
+      _obdService.disconnect();
+      setState(() {
+        isConnected = false;
+        rpm = "0";
+        speed = "0";
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connecting to ELM327...', style: GoogleFonts.spaceGrotesk()),
+          backgroundColor: const Color(0xFF14243B),
+        ),
+      );
+      
+      bool success = await _obdService.connectToOBD();
+      
+      if (mounted) {
+        setState(() {
+          isConnected = success;
+        });
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Connected to Vehicle', style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue)),
+              backgroundColor: const Color(0xFF14243B),
+            ),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,18 +89,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         actions: [
-          // ब्लूटूथ कनेक्शन स्टेटस आइकन
+          // ब्लूटूथ बटन - अब यह असली लॉजिक से जुड़ गया है
           IconButton(
             icon: Icon(
               isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
               color: isConnected ? Colors.greenAccent : Colors.redAccent,
+              size: 28,
             ),
-            onPressed: () {
-              // TODO: कनेक्ट करने का लॉजिक (अगली फाइल में)
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Searching for OBD2 Scanner...')),
-              );
-            },
+            onPressed: _toggleConnection,
           )
         ],
       ),
@@ -51,7 +106,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Vehicle Health Score Section
+              // Vehicle Health Score
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(20),
@@ -59,7 +114,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primaryNeonBlue.withOpacity(0.15),
+                        color: isConnected 
+                            ? AppColors.primaryNeonBlue.withOpacity(0.3)
+                            : Colors.transparent, // कनेक्ट होने पर नियन इफ़ेक्ट बढ़ेगा
                         blurRadius: 30,
                         spreadRadius: 5,
                       )
@@ -104,7 +161,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 40),
 
-              // Telemetry Grid Header
               Text(
                 'LIVE TELEMETRY',
                 style: GoogleFonts.spaceGrotesk(
@@ -115,7 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 15),
               
-              // 4 Live Data Cards
+              // 4 Live Data Cards (अब यहाँ वेरिएबल्स हैं)
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -124,15 +180,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisSpacing: 15,
                 childAspectRatio: 1.4,
                 children: [
-                  _buildTelemetryCard('RPM', '0', 'rev/min', Icons.speed),
-                  _buildTelemetryCard('SPEED', '0', 'km/h', Icons.directions_car),
-                  _buildTelemetryCard('TEMP', '---', '°C', Icons.thermostat),
-                  _buildTelemetryCard('BATTERY', '12.4', 'V', Icons.battery_charging_full),
+                  _buildTelemetryCard('RPM', rpm, 'rev/min', Icons.speed),
+                  _buildTelemetryCard('SPEED', speed, 'km/h', Icons.directions_car),
+                  _buildTelemetryCard('TEMP', temp, '°C', Icons.thermostat),
+                  _buildTelemetryCard('BATTERY', battery, 'V', Icons.battery_charging_full),
                 ],
               ),
               const SizedBox(height: 40),
 
-              // Glowing "Scan Now" Button
+              // "Scan Now" Button
               SizedBox(
                 width: double.infinity,
                 height: 65,
@@ -147,6 +203,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     shadowColor: AppColors.primaryNeonBlue.withOpacity(0.5),
                   ),
                   onPressed: () {
+                    if(!isConnected) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please connect OBD2 first!')),
+                       );
+                       return;
+                    }
                     // TODO: AI डायग्नोस्टिक स्कैन शुरू करें
                   },
                   child: Row(
@@ -174,12 +236,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // कस्टम विजेट फंक्शन: कार्ड्स बनाने के लिए
   Widget _buildTelemetryCard(String title, String value, String unit, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: const Color(0xFF14243B), // डार्क कार्ड बैकग्राउंड
+        color: const Color(0xFF14243B),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white10),
       ),
