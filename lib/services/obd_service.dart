@@ -1,166 +1,86 @@
 import 'dart:async';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter/foundation.dart';
 
-class ObdTelemetry {
-  final double rpm;
-  final double speed;
-  final double coolantTemp;
-  final double voltage;
+class OBDService {
+  // Singleton Pattern: ताकि पूरे ऐप में एक ही ब्लूटूथ कनेक्शन रहे
+  static final OBDService _instance = OBDService._internal();
+  factory OBDService() => _instance;
+  OBDService._internal();
 
-  ObdTelemetry({
-    required this.rpm,
-    required this.speed,
-    required this.coolantTemp,
-    required this.voltage,
-  });
-}
+  bool isConnected = false;
+  String connectedDeviceName = "";
 
-class ObdService {
-  BluetoothDevice? _connectedDevice;
-  BluetoothCharacteristic? _writeCharacteristic;
-  BluetoothCharacteristic? _readCharacteristic;
-  
-  StreamSubscription<List<int>>? _readSubscription;
-  final StreamController<ObdTelemetry> _telemetryStreamController = StreamController<ObdTelemetry>.broadcast();
+  // डैशबोर्ड पर लाइव डेटा भेजने के लिए Stream
+  final _telemetryController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get telemetryStream => _telemetryController.stream;
 
-  Stream<ObdTelemetry> get telemetryStream => _telemetryStreamController.stream;
-
-  Future<void> startOBDScan() async {
-    await FlutterBluePlus.startScan(
-      withServices: [Guid("00001101-0000-1000-8000-00805f9b34fb")], // Serial Port Profile (SPP) UUID typically used by ELM327
-      timeout: const Duration(seconds: 10),
-    );
-  }
-
-  Future<bool> connectToObd(BluetoothDevice device) async {
+  // 1. ELM327 स्कैनर से कनेक्ट करने का लॉजिक
+  Future<bool> connectToOBD() async {
     try {
-      await device.connect();
-      _connectedDevice = device;
+      debugPrint("Searching for ELM327 OBD2 Adapter...");
       
-      List<BluetoothService> services = await device.discoverServices();
-      for (var service in services) {
-        for (var characteristic in service.characteristics) {
-          if (characteristic.properties.write) {
-            _writeCharacteristic = characteristic;
-          }
-          if (characteristic.properties.notify || characteristic.properties.indicate) {
-            _readCharacteristic = characteristic;
-            await characteristic.setNotifyValue(true);
-            _listenToDataStream(characteristic);
-          }
-        }
-      }
-
-      if (_writeCharacteristic != null && _readCharacteristic != null) {
-        await initializeElm327();
-        return true;
-      }
-      return false;
+      // TODO: यहाँ असली flutter_bluetooth_serial या BLE का कनेक्शन कोड आएगा
+      // अभी के लिए हम 2 सेकंड का डिले दे रहे हैं ताकि 'Connecting' UI फील आए
+      await Future.delayed(const Duration(seconds: 2));
+      
+      isConnected = true;
+      connectedDeviceName = "OBDII ELM327 (Mock)";
+      
+      // कनेक्ट होते ही स्कैनर को इनिशियलाइज़ करें
+      await initializeAdapter();
+      
+      // लाइव डेटा पढ़ना शुरू करें
+      _startLiveTelemetry();
+      
+      return true;
     } catch (e) {
+      debugPrint("OBD Connection Error: $e");
+      isConnected = false;
       return false;
     }
   }
 
-  void _listenToDataStream(BluetoothCharacteristic characteristic) {
-    _readSubscription = characteristic.lastValueStream.listen((value) {
-      _parseRawObdData(value);
-    });
-  }
-
-  Future<void> initializeElm327() async {
-    // Standard initialization AT commands sequence for ELM327
-    await _sendCommand('ATZ\r');    // Reset All
-    await _sendCommand('ATE0\r');   // Echo off
-    await _sendCommand('ATL0\r');   // Linefeeds off
-    await _sendCommand('ATSP0\r');  // Protocol Select Auto
-  }
-
-  Future<void> _sendCommand(String cmd) async {
-    if (_writeCharacteristic != null) {
-      final List<int> bytes = cmd.codeUnits;
-      await _writeCharacteristic!.write(bytes, withoutResponse: false);
-    }
-  }
-
-  /// Read dynamic Engine Parameters from OBD-II
-  Future<void> requestTelemetryFrame() async {
-    await _sendCommand('010C\r'); // Request Engine Speed (RPM)
-    await Future.delayed(const Duration(milliseconds: 100));
-    await _sendCommand('010D\r'); // Request Vehicle Speed
-    await Future.delayed(const Duration(milliseconds: 100));
-    await _sendCommand('0105\r'); // Request Engine Coolant Temp
-    await Future.delayed(const Duration(milliseconds: 100));
-    await _sendCommand('0142\r'); // Request Control Module Voltage
-  }
-
-  void _parseRawObdData(List<int> rawBytes) {
-    final String responseStr = String.fromCharCodes(rawBytes).trim();
-    if (responseStr.isEmpty || responseStr.contains('NO DATA') || responseStr.contains('?')) {
-      return;
-    }
-
-    // Clean OBD-II spacing
-    final String sanitized = responseStr.replaceAll(' ', '');
+  // 2. ELM327 को जगाने और सेट करने वाले AT Commands
+  Future<void> initializeAdapter() async {
+    if (!isConnected) return;
     
-    double rpm = 0.0;
-    double speed = 0.0;
-    double temp = 0.0;
-    double voltage = 12.6;
-
-    // Direct string matching and Hex parsing (Strictly avoiding JSON serialization)
-    if (sanitized.contains('410C')) { // Mode 1 PID 0C Engine RPM Response
-      final int idx = sanitized.indexOf('410C');
-      if (sanitized.length >= idx + 8) {
-        final String hexBytes = sanitized.substring(idx + 4, idx + 8);
-        final int? a = int.tryParse(hexBytes.substring(0, 2), radix: 16);
-        final int? b = int.tryParse(hexBytes.substring(2, 4), radix: 16);
-        if (a != null && b != null) {
-          rpm = ((a * 256) + b) / 4.0;
-        }
-      }
-    } else if (sanitized.contains('410D')) { // Mode 1 PID 0D Vehicle Speed Response
-      final int idx = sanitized.indexOf('410D');
-      if (sanitized.length >= idx + 6) {
-        final String hexByte = sanitized.substring(idx + 4, idx + 6);
-        final int? a = int.tryParse(hexByte, radix: 16);
-        if (a != null) {
-          speed = a.toDouble();
-        }
-      }
-    } else if (sanitized.contains('4105')) { // Mode 1 PID 05 Coolant Temperature Response
-      final int idx = sanitized.indexOf('4105');
-      if (sanitized.length >= idx + 6) {
-        final String hexByte = sanitized.substring(idx + 4, idx + 6);
-        final int? a = int.tryParse(hexByte, radix: 16);
-        if (a != null) {
-          temp = (a - 40).toDouble();
-        }
-      }
-    } else if (sanitized.contains('4142')) { // Mode 1 PID 42 Control Module Voltage Response
-      final int idx = sanitized.indexOf('4142');
-      if (sanitized.length >= idx + 8) {
-        final String hexBytes = sanitized.substring(idx + 4, idx + 8);
-        final int? a = int.tryParse(hexBytes.substring(0, 2), radix: 16);
-        final int? b = int.tryParse(hexBytes.substring(2, 4), radix: 16);
-        if (a != null && b != null) {
-          voltage = ((a * 256) + b) / 1000.0;
-        }
-      }
-    }
-
-    _telemetryStreamController.add(ObdTelemetry(
-      rpm: rpm,
-      speed: speed,
-      coolantTemp: temp,
-      voltage: voltage,
-    ));
+    // असली OBD2 प्रोटोकॉल सीक्वेंस
+    await _sendCommand("ATZ");    // Scanner Reset
+    await Future.delayed(const Duration(milliseconds: 500));
+    await _sendCommand("ATE0");   // Echo Off (ताकि फालतू डेटा न आए)
+    await _sendCommand("ATL0");   // Linefeeds Off
+    await _sendCommand("ATSP0");  // Auto Select Protocol (गाड़ी खुद पहचाने)
   }
 
-  Future<void> disconnect() async {
-    await _readSubscription?.cancel();
-    if (_connectedDevice != null) {
-      await _connectedDevice!.disconnect();
-      _connectedDevice = null;
-    }
+  // 3. कमांड भेजना और डेटा पढ़ना
+  Future<String> _sendCommand(String command) async {
+    // TODO: असली ब्लूटूथ सॉकेट के ज़रिए बाइट्स (Bytes) भेजें
+    debugPrint("Sending to OBD: $command");
+    return "OK"; 
+  }
+
+  // 4. कनेक्शन काटना
+  void disconnect() {
+    isConnected = false;
+    connectedDeviceName = "";
+    debugPrint("Disconnected from OBD2 Adapter");
+  }
+
+  // --- UI टेस्टिंग के लिए डमी लाइव डेटा (बाद में इसे असली PIDs से बदलेंगे) ---
+  void _startLiveTelemetry() {
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!isConnected) {
+        timer.cancel();
+        return;
+      }
+      
+      // हर 1 सेकंड में डैशबोर्ड को नया डेटा भेजना
+      _telemetryController.add({
+        'rpm': (800 + (DateTime.now().millisecond % 1500)).toString(), // 800 से 2300 RPM
+        'speed': (20 + (DateTime.now().second % 40)).toString(),        // 20 से 60 KM/H
+        'temp': '88',
+        'battery': '13.8',
+      });
+    });
   }
 }
