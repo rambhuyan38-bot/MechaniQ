@@ -3,19 +3,22 @@ description: A new Flutter project.
 version: 1.0.0+1
 environment:
   sdk: '>=3.0.0 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
-  provider: ^6.1.1
-  permission_handler: ^11.3.0
+  provider: ^6.1.5
+  permission_handler: ^11.4.0
   http: ^1.2.0
   sqflite: ^2.3.0
   path: ^1.8.3
+  google_fonts: ^6.1.0       # <-- Yeh naya package joda gaya hai
+  flutter_spinkit: ^8.1.0    # <-- Yeh naya package joda gaya hai
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^3.0.2
 
 flutter:
   uses-material-design: true
