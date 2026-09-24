@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_colors.dart';
+import '../services/cloudflare_ai_service.dart'; // <-- AI सर्विस इम्पोर्ट कर ली
 
 class MultiViewResultsScreen extends StatefulWidget {
-  final Map<String, dynamic>? scanData; // डैशबोर्ड से आने वाला स्कैन डेटा
+  final Map<String, dynamic>? scanData; 
 
   const MultiViewResultsScreen({Key? key, this.scanData}) : super(key: key);
 
@@ -13,12 +14,39 @@ class MultiViewResultsScreen extends StatefulWidget {
 
 class _MultiViewResultsScreenState extends State<MultiViewResultsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  
+  // AI डेटा के लिए वेरिएबल्स
+  bool _isAnalyzing = true;
+  String _aiAnalysisResult = "Analyzing data with AI...";
 
   @override
   void initState() {
     super.initState();
-    // 4 टैब्स के लिए कंट्रोलर
     _tabController = TabController(length: 4, vsync: this);
+    
+    // स्क्रीन खुलते ही AI को डेटा भेजना शुरू करें
+    _fetchAIAnalysis();
+  }
+
+  Future<void> _fetchAIAnalysis() async {
+    // अभी के लिए हम डमी OBD डेटा भेज रहे हैं (बाद में असली स्कैनर का डेटा देंगे)
+    Map<String, dynamic> obdPayload = {
+      "dtc_codes": ["P0300", "P0171"],
+      "rpm": "3100",
+      "speed": "40",
+      "engine_temp": "95"
+    };
+
+    // Cloudflare AI Service को कॉल करना
+    String result = await CloudflareAIService().getAIDiagnosis(obdPayload);
+
+    // रिज़ल्ट आने के बाद UI अपडेट करना
+    if (mounted) {
+      setState(() {
+        _aiAnalysisResult = result;
+        _isAnalyzing = false;
+      });
+    }
   }
 
   @override
@@ -63,7 +91,7 @@ class _MultiViewResultsScreenState extends State<MultiViewResultsScreen> with Si
         children: [
           _buildRiderView(),
           _buildMechanicView(),
-          _buildAIView(),
+          _buildAIView(), // <-- इसमें नया लोडिंग लॉजिक है
           _buildCostView(),
         ],
       ),
@@ -142,32 +170,42 @@ class _MultiViewResultsScreenState extends State<MultiViewResultsScreen> with Si
     );
   }
 
-  // ================= TAB 3: AI VIEW =================
+  // ================= TAB 3: AI VIEW (अब यह असली API से जुड़ा है) =================
   Widget _buildAIView() {
     return _buildTabContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_awesome, color: AppColors.primaryNeonBlue),
-              const SizedBox(width: 10),
-              Text("AI DIAGNOSIS", style: GoogleFonts.orbitron(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "Based on the combination of P0300 and P0171, the AI has determined with 89% confidence that the issue is a vacuum leak causing a lean mixture, leading to the misfire.",
-            style: GoogleFonts.spaceGrotesk(color: Colors.white70, fontSize: 14, height: 1.5),
-          ),
-          const SizedBox(height: 20),
-          Text("NEXT TESTS TO PERFORM:", style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          _buildChecklistItem("Check intake manifold gasket for leaks"),
-          _buildChecklistItem("Inspect vacuum hoses for cracks"),
-          _buildChecklistItem("Check mass airflow (MAF) sensor"),
-        ],
-      ),
+      child: _isAnalyzing 
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(color: AppColors.primaryNeonBlue),
+                  const SizedBox(height: 20),
+                  Text(
+                    "MechaniQ AI is analyzing root cause...",
+                    style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, letterSpacing: 1.5),
+                  ),
+                ],
+              ),
+            )
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.auto_awesome, color: AppColors.primaryNeonBlue),
+                      const SizedBox(width: 10),
+                      Text("AI DIAGNOSIS", style: GoogleFonts.orbitron(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    _aiAnalysisResult, // <-- यहाँ Cloudflare से आया हुआ असली रिज़ल्ट प्रिंट होगा
+                    style: GoogleFonts.spaceGrotesk(color: Colors.white70, fontSize: 14, height: 1.5),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -215,19 +253,6 @@ class _MultiViewResultsScreenState extends State<MultiViewResultsScreen> with Si
         children: [
           Expanded(flex: 2, child: Text(title, style: GoogleFonts.spaceGrotesk(color: Colors.white, fontWeight: FontWeight.bold))),
           Expanded(flex: 3, child: Text(value, style: GoogleFonts.spaceGrotesk(color: valueColor), textAlign: TextAlign.right)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChecklistItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 20),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: GoogleFonts.spaceGrotesk(color: Colors.white))),
         ],
       ),
     );
