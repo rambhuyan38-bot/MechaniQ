@@ -1,19 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/vehicle.dart';
-import '../services/cloudflare_ai_service.dart';
-import '../services/obd_service.dart';
-import 'mechanic_consultation_screen.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class MultiViewResultsScreen extends StatefulWidget {
-  final Vehicle vehicle;
-  final List<String> dtcCodes;
-
-  const MultiViewResultsScreen({
-    super.key,
-    required this.vehicle,
-    required this.dtcCodes,
-  });
+  const MultiViewResultsScreen({super.key});
 
   @override
   State<MultiViewResultsScreen> createState() => _MultiViewResultsScreenState();
@@ -21,353 +10,386 @@ class MultiViewResultsScreen extends StatefulWidget {
 
 class _MultiViewResultsScreenState extends State<MultiViewResultsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _isLoading = true;
-  Map<String, dynamic> _aiResponse = {};
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _fetchAIResult();
   }
 
-  void _fetchAIResult() async {
-    final aiService = Provider.of<CloudflareAIService>(context, listen: false);
-    final response = await aiService.queryDiagnostics(
-      vehicle: widget.vehicle,
-      dtcCodes: widget.dtcCodes,
-      lang: 'en',
-    );
-    setState(() {
-      _aiResponse = response;
-      _isLoading = false;
-    });
-  }
-
-  void _showClearDtcDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1F2833),
-          title: const Row(
-            children: [
-              Icon(Icons.warning, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('Confirm DTC Clear', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: const Text(
-            'Clearing DTC codes resets the Check Engine Light and erases Freeze Frame diagnostic files. This action should only be performed after underlying components have been fixed.',
-            style: TextStyle(color: Color(0xFFC5C6C7)),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00FF87)),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                final obd = Provider.of<ObdService>(context, listen: false);
-                await obd.clearDtcCodes();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('DTC codes successfully cleared (Service 04). Check Engine Light Reset!')),
-                );
-              },
-              child: const Text('PROCEED RESET', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(color: Color(0xFF00F2FE)),
-              SizedBox(height: 16),
-              Text('Analyzing via Secure AI Diagnostics...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final diagList = _aiResponse['diagnostics'] as List<dynamic>? ?? [];
-
     return Scaffold(
+      backgroundColor: const Color(0xFF0A0E14),
       appBar: AppBar(
-        title: const Text('Diagnostic Center'),
+        backgroundColor: const Color(0xFF151D2A),
+        elevation: 0,
+        title: const Text(
+          'DIAGNOSTIC REPORT',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 2),
+        ),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: const Color(0xFF00F2FE),
-          labelColor: const Color(0xFF00F2FE),
+          isScrollable: true,
+          indicatorColor: const Color(0xFF00FFCC),
+          labelColor: const Color(0xFF00FFCC),
           unselectedLabelColor: Colors.grey,
           tabs: const [
-            Tab(text: 'Rider'),
-            Tab(text: 'Technical'),
-            Tab(text: 'AI Analysis'),
-            Tab(text: 'Cost Map'),
+            Tab(text: 'RIDER VIEW'),
+            Tab(text: 'MECHANIC VIEW'),
+            Tab(text: 'AI VIEW'),
+            Tab(text: 'COST VIEW'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildRiderView(diagList),
-          _buildMechanicView(diagList),
-          _buildAiView(diagList),
-          _buildCostView(diagList),
+          _buildRiderTab(),
+          _buildMechanicTab(),
+          _buildAITab(),
+          _buildCostTab(),
         ],
       ),
-      bottomNavigationBar: _buildBottomActions(),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showClearDTCDialog(context),
+        backgroundColor: const Color(0xFFFF3366),
+        icon: const Icon(Icons.delete_forever, color: Colors.white),
+        label: const Text(
+          'Clear DTC (Premium)',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
     );
   }
 
-  Widget _buildRiderView(List<dynamic> diagnostics) {
+  Widget _buildRiderTab() {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ListView.builder(
-        itemCount: diagnostics.length,
-        itemBuilder: (context, i) {
-          final diag = diagnostics[i];
-          final severityColor = diag['severity'] == 'Critical' ? Colors.red : Colors.orange;
-          return Card(
-            color: const Color(0xFF1F2833),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFB300).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB300), size: 40),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(diag['code'] as String, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF00FF87))),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(color: severityColor.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
-                        child: Text(diag['severity'] as String, style: TextStyle(color: severityColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(
+                        'Safe to ride but check emissions',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Detected minor combustion variations. The exhaust emission limits may be slightly exceeded.',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  const Text('Rider Impact & Recommendation:', style: TextStyle(color: Color(0xFF00F2FE), fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Text(diag['riderExplanation'] as String, style: const TextStyle(fontSize: 15, height: 1.4)),
-                ],
-              ),
+                )
+              ],
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildMechanicView(List<dynamic> diagnostics) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ListView(
-        children: [
-          ...diagnostics.map((diag) {
-            return Card(
-              color: const Color(0xFF1F2833),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Raw DTC Code: ${diag['code']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00F2FE))),
-                    const SizedBox(height: 4),
-                    Text('Description: ${diag['definition']}', style: const TextStyle(color: Colors.white)),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-          const SizedBox(height: 16),
-          const Text('Live Sensor Graph Simulator (Service 01)', style: TextStyle(color: Color(0xFF00FF87), fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          Container(
-            height: 140,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF00F2FE).withOpacity(0.3)),
-            ),
-            child: CustomPaint(
-              painter: WaveformPainter(),
-            ),
-          )
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Actionable Guidance',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00FFCC)),
+          ),
+          const SizedBox(height: 12),
+          _buildGuidanceItem(Icons.check_circle_outline, 'Keep speeds under 80 km/h to optimize combustion.'),
+          _buildGuidanceItem(Icons.check_circle_outline, 'Ensure engine fuel filler cap is tightened completely.'),
+          _buildGuidanceItem(Icons.check_circle_outline, 'Schedule a checkup within the next 200 km.'),
         ],
       ),
     );
   }
 
-  Widget _buildAiView(List<dynamic> diagnostics) {
-    final confidence = _aiResponse['confidence'] ?? 95.0;
-    final evidence = _aiResponse['evidence'] ?? "OBD-II Hex payload matching standard database engine patterns.";
-
+  Widget _buildGuidanceItem(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Card(
-            color: const Color(0xFF1F2833),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('AI Diagnostic Confidence', style: TextStyle(color: Color(0xFFC5C6C7))),
-                  const SizedBox(height: 8),
-                  Text('$confidence %', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00FF87))),
-                  const SizedBox(height: 12),
-                  const Text('Analysis Evidence Match:', style: TextStyle(color: Color(0xFF00F2FE), fontWeight: FontWeight.bold)),
-                  Text(evidence, style: const TextStyle(color: Colors.white70)),
+          Icon(icon, color: const Color(0xFF00FFCC), size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: Colors.white))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMechanicTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Raw Diagnostic Codes',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00FFCC)),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF151D2A),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.between,
+                  children: [
+                    Text('DTC P0301', style: TextStyle(fontFamily: 'Courier', fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFFF3366))),
+                    Text('Active / Confirmed', style: TextStyle(color: Color(0xFFFF3366), fontSize: 12)),
+                  ],
+                ),
+                SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Cylinder 1 Misfire Detected', style: TextStyle(color: Colors.white, fontSize: 14)),
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Freeze Frame Data',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00FFCC)),
+          ),
+          const SizedBox(height: 12),
+          Table(
+            border: TableBorder.all(color: Colors.white.withOpacity(0.05)),
+            children: const [
+              TableRow(children: [
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('Engine Speed (RPM)', style: TextStyle(color: Colors.grey)))),
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('3,250 rpm', style: TextStyle(color: Colors.white)))),
+              ]),
+              TableRow(children: [
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('Calculated Load', style: TextStyle(color: Colors.grey)))),
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('72.4 %', style: TextStyle(color: Colors.white)))),
+              ]),
+              TableRow(children: [
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('Coolant Temperature', style: TextStyle(color: Colors.grey)))),
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('96 °C', style: TextStyle(color: Colors.white)))),
+              ]),
+              TableRow(children: [
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('Fuel Pressure', style: TextStyle(color: Colors.grey)))),
+                TableCell(child: Padding(padding: EdgeInsets.all(8.0), child: Text('315 kPa', style: TextStyle(color: Colors.white)))),
+              ]),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Live Sensor Waveform',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00FFCC)),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 150,
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                borderData: FlBorderData(show: true, border: Border.all(color: Colors.white.withOpacity(0.1))),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: const [
+                      FlSpot(0, 1.2),
+                      FlSpot(1, 1.5),
+                      FlSpot(2, 0.8),
+                      FlSpot(3, 2.4),
+                      FlSpot(4, 1.3),
+                      FlSpot(5, 1.9),
+                      FlSpot(6, 1.1),
+                    ],
+                    isCurved: true,
+                    color: const Color(0xFF00FFCC),
+                    barWidth: 3,
+                    belowBarData: BarAreaData(show: true, color: const Color(0xFF00FFCC).withOpacity(0.1)),
+                  ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          const Text('Root Cause Decision Tree', style: TextStyle(color: Color(0xFF00FF87), fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          ...diagnostics.map((diag) {
-            return Card(
-              color: const Color(0xFF1F2833),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Possible Roots:', style: TextStyle(color: Color(0xFF00F2FE), fontWeight: FontWeight.bold)),
-                    Text(diag['possibleCauses'] as String, style: const TextStyle(color: Colors.white)),
-                    const Divider(color: Colors.grey, height: 24),
-                    const Text('Recommended Logic Check:', style: TextStyle(color: Color(0xFF00FF87), fontWeight: FontWeight.bold)),
-                    Text(diag['recommendedTest'] as String, style: const TextStyle(color: Colors.white)),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
         ],
       ),
     );
   }
 
-  Widget _buildCostView(List<dynamic> diagnostics) {
+  Widget _buildAITab() {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ListView.builder(
-        itemCount: diagnostics.length,
-        itemBuilder: (context, i) {
-          final diag = diagnostics[i];
-          final double oem = diag['oemCost'] ?? 0.0;
-          final double aftermarket = diag['aftermarketCost'] ?? 0.0;
-          final double labor = diag['laborCost'] ?? 0.0;
-
-          return Card(
-            color: const Color(0xFF1F2833),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Price Analysis: ${diag['code']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00F2FE))),
-                  const Divider(color: Colors.grey, height: 20),
-                  _costRow('OEM Certified Part', '₹ $oem', Colors.white),
-                  _costRow('Aftermarket Part', '₹ $aftermarket', const Color(0xFF00FF87)),
-                  _costRow('Estimated Mechanics Labor', '₹ $labor', Colors.white),
-                  const Divider(color: Colors.grey, height: 20),
-                  _costRow('Total Estimated Cost (Aftermarket)', '₹ ${aftermarket + labor}', const Color(0xFF00F2FE), bold: true),
-                ],
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'AI Confidence Level',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-            ),
-          );
-        },
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, py: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00FFCC).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  '94% MATCH',
+                  style: TextStyle(color: Color(0xFF00FFCC), fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              )
+            ],
+          ),
+          const SizedBox(height: 16),
+          const LinearProgressIndicator(
+            value: 0.94,
+            backgroundColor: Color(0xFF151D2A),
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00FFCC)),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Root Cause Analysis',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00FFCC)),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'High-voltage discharge mismatch detected specifically in Cylinder 1. It points to a degraded ignition coil insulation or a fouled terminal tip.',
+            style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.4),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Decision Logic Path',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00FFCC)),
+          ),
+          const SizedBox(height: 12),
+          _buildDecisionNode('Signal mismatch: Cylinder 1 Ionization level abnormal'),
+          _buildDecisionNode('Evaluation logic: Voltage leak pattern recognized'),
+          _buildDecisionNode('Diagnosis result: Spark Plug Failure imminent'),
+        ],
       ),
     );
   }
 
-  Widget _costRow(String title, String cost, Color valueColor, {bool bold = false}) {
+  Widget _buildDecisionNode(String step) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          const Icon(Icons.subdirectory_arrow_right, color: Color(0xFF00FFCC), size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text(step, style: const TextStyle(fontSize: 13, color: Colors.white))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCostTab() {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Estimated Spare Parts',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          _buildCostItem('OEM Spark Plug (High Durability)', '₹1,450'),
+          _buildCostItem('Aftermarket Premium Plug', '₹850'),
+          const Divider(color: Colors.white10),
+          const SizedBox(height: 12),
+          const Text(
+            'Labor Fee Breakdown',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          _buildCostItem('Standard Mechanic Service', '₹450 - ₹600'),
+          _buildCostItem('Authorized Workshop Service', '₹900 - ₹1,200'),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00FFCC).withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF00FFCC).withOpacity(0.2)),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Total Estimated Budget', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('₹1,300 - ₹2,650', style: TextStyle(fontWeight: FontWeight.black, fontSize: 18, color: Color(0xFF00FFCC))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCostItem(String item, String price) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: TextStyle(color: const Color(0xFFC5C6C7), fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-          Text(cost, style: TextStyle(color: valueColor, fontWeight: FontWeight.bold, fontSize: bold ? 16 : 14)),
+          Text(item, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          Text(price, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget _buildBottomActions() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _showClearDtcDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                side: const BorderSide(color: Colors.red, width: 2),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('CLEAR DTC', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-            ),
+  void _showClearDTCDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF151D2A),
+          title: const Text('Clear DTCs', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'This command resets active ECU diagnostics. Ensure vehicle ignition is ON and engine is OFF.',
+            style: TextStyle(color: Colors.grey),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const MechanicConsultationScreen()),
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('ECU Reset command dispatched successfully!'),
+                    backgroundColor: Color(0xFF00FFCC),
+                  ),
                 );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00FF87),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('CONSULT EXPERT', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
-      ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3366)),
+              child: const Text('CLEAR NOW', style: TextStyle(color: Colors.white)),
+            )
+          ],
+        );
+      },
     );
   }
-}
-
-class WaveformPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF00F2FE)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final path = Path();
-    path.moveTo(0, size.height / 2);
-    for (double i = 0; i < size.width; i += 2) {
-      // Dynamic simulated sinus rhythm waveform
-      double y = size.height / 2 + 30 * (0.5 * (i % 30 < 10 ? 1 : -1) + (i % 60 == 0 ? 2 : -0.2));
-      path.lineTo(i, y);
-    }
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
