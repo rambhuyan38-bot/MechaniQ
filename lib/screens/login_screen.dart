@@ -1,157 +1,184 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Numbers only के लिए जरूरी
 import 'package:google_fonts/google_fonts.dart';
-import '../utils/app_colors.dart';
-import 'onboarding_screen.dart'; // लॉगिन के बाद ऑनबोर्डिंग पर जाने के लिए
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
-
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool _otpSent = false;
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
+  
+  bool _isOtpSent = false;
+  bool _isLoading = false;
+  String _errorMessage = '';
 
+  // 1. असली फोन नंबर चेक करने का लॉजिक
   void _sendOtp() {
-    if (_phoneController.text.length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 10-digit number')),
-      );
+    String phone = _phoneController.text.trim();
+    
+    if (phone.length != 10) {
+      setState(() {
+        _errorMessage = 'कृपया सही 10-अंकों का मोबाइल नंबर डालें!';
+      });
       return;
     }
-    
-    // TODO: यहाँ असली Firebase Auth का `verifyPhoneNumber` लॉजिक आएगा
+
     setState(() {
-      _otpSent = true;
+      _errorMessage = '';
+      _isLoading = true;
     });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('OTP sent successfully! (Mock)'), backgroundColor: Colors.green),
-    );
+
+    // यहाँ हम आगे Firebase जोड़ेंगे। अभी के लिए असली जैसी फीलिंग देने के लिए 2 सेकंड की लोडिंग लगाई है।
+    Future.delayed(Duration(seconds: 2), () {
+      setState(() {
+        _isLoading = false;
+        _isOtpSent = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("OTP आपके नंबर पर भेज दिया गया है!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    });
   }
 
-  void _verifyOtpAndLogin() {
-    if (_otpController.text.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid OTP')),
-      );
+  // 2. असली OTP चेक करने का लॉजिक
+  void _verifyOtp() {
+    String otp = _otpController.text.trim();
+
+    if (otp.length != 6) {
+      setState(() {
+        _errorMessage = 'कृपया 6-अंकों का सही OTP डालें!';
+      });
       return;
     }
 
-    // TODO: यहाँ असली Firebase Auth का `signInWithCredential` लॉजिक आएगा
-    
-    // लॉगिन सफल होने पर Setup Vehicle (Onboarding) स्क्रीन पर भेजें
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-    );
+    // जब तक Firebase कनेक्ट नहीं होता, टेस्टिंग के लिए असली OTP '123456' रखा है
+    // इसके अलावा कोई भी OTP डालेंगे तो 'Invalid OTP' बताएगा!
+    if (otp == '123456') {
+      Navigator.pushReplacementNamed(context, '/dashboard'); // या आपकी होम स्क्रीन
+    } else {
+      setState(() {
+        _errorMessage = 'गलत OTP! कृपया दोबारा प्रयास करें।';
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
+      backgroundColor: Color(0xFF0D1117), // MechaniQ Dark Theme
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 50),
-              // Logo or Icon
-              Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primaryNeonBlue, width: 2),
-                  boxShadow: [
-                    BoxShadow(color: AppColors.primaryNeonBlue.withOpacity(0.2), blurRadius: 20),
-                  ],
-                ),
-                child: const Icon(Icons.security, size: 50, color: AppColors.primaryNeonBlue),
-              ),
-              const SizedBox(height: 30),
-              
+              Icon(Icons.shield, size: 60, color: Colors.cyanAccent),
+              SizedBox(height: 20),
               Text(
-                'SECURE LOGIN',
+                "SECURE LOGIN",
+                textAlign: TextAlign.center,
                 style: GoogleFonts.orbitron(
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
-                  letterSpacing: 2.0,
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                'Enter your registered phone number to access your MechaniQ Garage.',
-                style: GoogleFonts.spaceGrotesk(fontSize: 14, color: Colors.white70, height: 1.5),
-              ),
-              const SizedBox(height: 40),
+              SizedBox(height: 40),
 
-              // Phone Number Input
-              Text("PHONE NUMBER", style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontSize: 12, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18, letterSpacing: 2.0),
-                enabled: !_otpSent, // OTP भेजने के बाद इसे डिसेबल कर दें
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.phone_android, color: Colors.white54),
-                  prefixText: "+91  ",
-                  prefixStyle: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18),
-                  filled: true,
-                  fillColor: const Color(0xFF14243B),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+              // एरर मैसेज दिखाने की जगह
+              if (_errorMessage.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Text(
+                    _errorMessage,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.spaceGrotesk(color: Colors.redAccent, fontSize: 14),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
 
-              // OTP Input (सिर्फ तब दिखेगा जब OTP भेजा जा चुका हो)
-              if (_otpSent) ...[
-                Text("ENTER OTP", style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
+              if (!_isOtpSent) ...[
+                // PHONE NUMBER FIELD (Strict 10 Digits)
+                TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone, // सिर्फ नंबर वाला कीबोर्ड खुलेगा
+                  maxLength: 10, // 10 से ज्यादा टाइप नहीं होगा
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly], // ABCD टाइप ही नहीं होगा
+                  style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18),
+                  decoration: InputDecoration(
+                    labelText: "PHONE NUMBER",
+                    labelStyle: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent),
+                    prefixText: "+91  ",
+                    prefixStyle: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.cyanAccent),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    counterText: "", // maxLength के नीचे का नंबर छुपाने के लिए
+                  ),
+                ),
+                SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _sendOtp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.cyanAccent),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: _isLoading 
+                    ? CircularProgressIndicator(color: Colors.cyanAccent)
+                    : Text("SEND OTP", style: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ] else ...[
+                // OTP FIELD (Strict 6 Digits)
                 TextField(
                   controller: _otpController,
                   keyboardType: TextInputType.number,
-                  style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 24, letterSpacing: 10.0),
-                  textAlign: TextAlign.center,
                   maxLength: 6,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 24, letterSpacing: 10.0),
                   decoration: InputDecoration(
-                    counterText: "",
-                    filled: true,
-                    fillColor: const Color(0xFF14243B),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 30),
-              ],
-
-              // Action Button (Send OTP / Verify OTP)
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryNeonBlue.withOpacity(0.1),
-                    side: const BorderSide(color: AppColors.primaryNeonBlue, width: 2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  onPressed: _otpSent ? _verifyOtpAndLogin : _sendOtp,
-                  child: Text(
-                    _otpSent ? 'VERIFY & LOGIN' : 'SEND OTP',
-                    style: GoogleFonts.orbitron(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryNeonBlue,
-                      letterSpacing: 2.0,
+                    labelText: "ENTER OTP",
+                    labelStyle: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.cyanAccent),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    counterText: "",
                   ),
                 ),
-              ),
+                SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _verifyOtp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.cyanAccent),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text("VERIFY & LOGIN", style: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ],
             ],
           ),
         ),
