@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart'; // असली Firebase पैकेज
+
 import 'providers/ai_chat_provider.dart';
 import 'providers/obd_provider.dart';
 import 'providers/vehicle_provider.dart';
 import 'services/auth_service.dart';
 import 'routes/app_routes.dart';
 
-void main() {
+void main() async {
+  // ऐप स्टार्ट होने से पहले विजेट्स और Firebase को रेडी करना जरूरी है
   WidgetsFlutterBinding.ensureInitialized();
-  // Temporarily removed Firebase initialization for Mock Setup
+  await Firebase.initializeApp(); 
+
   runApp(const MechaniQApp());
 }
 
