@@ -178,6 +178,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
               ),
+              
+              SizedBox(height: 16),
+              
+              // 🚀 नया फीचर: Amazon OBD2 Scanner Link Button
+              OutlinedButton.icon(
+                onPressed: () {
+                  // यूजर को सूचना देने या लिंक दिखाने का पॉपअप
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: Color(0xFF161B22),
+                      title: Text("Get OBD2 Scanner", style: GoogleFonts.orbitron(color: Colors.cyanAccent)),
+                      content: Text(
+                        "गाड़ी को स्कैन करने के लिए ELM327 ब्लूटूथ स्कैनर की ज़रूरत होती है। आप इसे Amazon से ले सकते हैं।",
+                        style: GoogleFonts.spaceGrotesk(color: Colors.white70),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text("OK", style: TextStyle(color: Colors.cyanAccent)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                icon: Icon(Icons.shopping_cart_outlined, color: Colors.orangeAccent, size: 18),
+                label: Text(
+                  "Don't have a scanner? Buy on Amazon",
+                  style: GoogleFonts.spaceGrotesk(color: Colors.orangeAccent, fontSize: 13),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: Colors.orangeAccent.withOpacity(0.5)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+
             ],
           ),
         ),
