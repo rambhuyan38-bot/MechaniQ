@@ -13,14 +13,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   
-  // चैट मैसेजेस की असली लिस्ट
+  // चैट मैसेजेस की लिस्ट
   List<Map<String, String>> _messages = [
     {"role": "ai", "text": "Hello! I am MechaniQ AI. How can I help you with your vehicle today?"}
   ];
   
   bool _isLoading = false;
 
-  // असली AI से बात करने का फंक्शन
   Future<void> _sendMessage() async {
     String userText = _messageController.text.trim();
     if (userText.isEmpty) return;
@@ -34,8 +33,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     _scrollToBottom();
 
     try {
-      // ⚠️ यहाँ आपका असली Cloudflare AI या Gemini API का लिंक आएगा
-      // अभी के लिए मैंने एक स्मार्ट डमी लॉजिक डाला है ताकि यह आपकी बात का मतलब समझे
+      // असली सर्वर से जवाब मांगना
       String aiResponse = await _getSmartResponse(userText);
       
       setState(() {
@@ -53,20 +51,40 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     }
   }
 
-  // डमी से हटाकर स्मार्ट कीवर्ड आधारित लॉजिक (जब तक API की चाबी न लगे)
+  // 🚀 यहाँ है असली सर्वर और "पासपोर्ट" का लॉजिक
   Future<String> _getSmartResponse(String input) async {
-    await Future.delayed(Duration(seconds: 2)); // असली लोडिंग की फील
-    String lowerInput = input.toLowerCase();
+    // ⚠️ 1. यहाँ अपने असली सर्वर का URL डालें (http:// मत डालें, https:// डालें)
+    final url = Uri.parse('https://YOUR_SERVER_URL.com/api/chat'); 
 
-    if (lowerInput.contains("logon") || lowerInput.contains("meter")) {
-      return "मीटर पर लाइट (Logon) आने का मतलब है कि गाड़ी के किसी सेंसर में दिक्कत है (जैसे Check Engine या ABS)। सटीक कारण जानने के लिए कृपया अपना OBD2 स्कैनर कनेक्ट करें।";
-    } else if (lowerInput.contains("starting") || lowerInput.contains("start")) {
-      return "अगर गाड़ी स्टार्ट नहीं हो रही है, तो सबसे पहले अपनी बैटरी वोल्टेज (12.4V से ऊपर) चेक करें और स्पार्क प्लग की जांच करें।";
-    } else if (lowerInput.contains("mileage") || lowerInput.contains("average")) {
-      return "माइलेज कम होने के कई कारण हो सकते हैं: गंदा एयर फिल्टर, कम टायर प्रेशर, या खराब ऑक्सीजन (O2) सेंसर।";
+    try {
+      final response = await http.post(
+        url,
+        // ⚠️ 2. यह है आपका "पासपोर्ट" (Headers) जिसे सर्वर चेक करेगा
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer YOUR_SECRET_TOKEN', // अपना असली टोकन यहाँ डालें
+          'x-api-key': 'YOUR_API_KEY' // अगर API की भी है, तो यहाँ डालें
+        },
+        // 3. आपका सवाल (JSON फॉर्मेट में)
+        body: jsonEncode({
+          "message": input
+          // अगर आपका सर्वर 'query' या 'text' नाम से डेटा लेता है, तो "message" को बदल दें।
+        }),
+      );
+
+      // 4. अगर सर्वर ने पासपोर्ट पास कर दिया (Status 200)
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+        
+        // ⚠️ ध्यान दें: अपने सर्वर के हिसाब से इसे बदलें। 
+        // अगर आपका सर्वर {"reply": "Hello"} भेजता है, तो data['reply'] लिखें।
+        return data['reply'] ?? data['response'] ?? data['message'] ?? "सर्वर से जवाब मिला पर पढ़ नहीं पाया।";
+      } else {
+        return "सर्वर ने रिजेक्ट कर दिया (Error: ${response.statusCode}) - कृपया API Key चेक करें।";
+      }
+    } catch (e) {
+      return "सर्वर से कनेक्ट नहीं हो पा रहा है। Error: $e";
     }
-    
-    return "मैं आपकी समस्या का विश्लेषण कर रहा हूँ। बेहतर जानकारी के लिए कृपया अपने OBD2 स्कैनर से डायग्नोस्टिक स्कैन रन करें।";
   }
 
   void _scrollToBottom() {
@@ -83,8 +101,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // UI का कोड बिल्कुल वैसा ही है (बिना किसी बदलाव के)
     return Scaffold(
-      backgroundColor: Color(0xFF0D1117), // MechaniQ Theme
+      backgroundColor: Color(0xFF0D1117), 
       appBar: AppBar(
         backgroundColor: Color(0xFF161B22),
         title: Row(
@@ -139,7 +158,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               ),
             ),
             
-          // Input Field UI
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             color: Color(0xFF161B22),
