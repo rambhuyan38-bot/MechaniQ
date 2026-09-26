@@ -33,7 +33,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     _scrollToBottom();
 
     try {
-      // असली सर्वर से जवाब मांगना
+      // असली Cloudflare सर्वर से जवाब मांगना
       String aiResponse = await _getSmartResponse(userText);
       
       setState(() {
@@ -51,39 +51,35 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     }
   }
 
-  // 🚀 यहाँ है असली सर्वर और "पासपोर्ट" का लॉजिक
+  // 🚀 यहाँ है आपके Cloudflare सर्वर और "पासपोर्ट" का असली लॉजिक
   Future<String> _getSmartResponse(String input) async {
-    // ⚠️ 1. यहाँ अपने असली सर्वर का URL डालें (http:// मत डालें, https:// डालें)
-    final url = Uri.parse('https://YOUR_SERVER_URL.com/api/chat'); 
+    // 1. आपका असली Cloudflare सर्वर URL
+    final url = Uri.parse('https://rough-block-3dd9.rambhuyan23.workers.dev/analyze'); 
 
     try {
       final response = await http.post(
         url,
-        // ⚠️ 2. यह है आपका "पासपोर्ट" (Headers) जिसे सर्वर चेक करेगा
+        // 2. आपका असली "पासपोर्ट" (Headers) जिसे सर्वर चेक करेगा
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer YOUR_SECRET_TOKEN', // अपना असली टोकन यहाँ डालें
-          'x-api-key': 'YOUR_API_KEY' // अगर API की भी है, तो यहाँ डालें
+          'X-App-Secret': 'MechaniQ_Secure_Key_2026_!@#' // <--- आपका मास्टर पासवर्ड
         },
-        // 3. आपका सवाल (JSON फॉर्मेट में)
+        // 3. यूजर का सवाल
         body: jsonEncode({
           "message": input
-          // अगर आपका सर्वर 'query' या 'text' नाम से डेटा लेता है, तो "message" को बदल दें।
         }),
       );
 
-      // 4. अगर सर्वर ने पासपोर्ट पास कर दिया (Status 200)
+      // 4. अगर पासवर्ड मैच हो गया (Status 200)
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
-        
-        // ⚠️ ध्यान दें: अपने सर्वर के हिसाब से इसे बदलें। 
-        // अगर आपका सर्वर {"reply": "Hello"} भेजता है, तो data['reply'] लिखें।
-        return data['reply'] ?? data['response'] ?? data['message'] ?? "सर्वर से जवाब मिला पर पढ़ नहीं पाया।";
+        // सर्वर से आने वाले जवाब को पढ़ना 
+        return data['reply'] ?? data['response'] ?? data['message'] ?? "सर्वर से जवाब मिला है।";
       } else {
-        return "सर्वर ने रिजेक्ट कर दिया (Error: ${response.statusCode}) - कृपया API Key चेक करें।";
+        return "पासपोर्ट रिजेक्ट हो गया (Error: ${response.statusCode}) - सर्वर ने एंट्री नहीं दी।";
       }
     } catch (e) {
-      return "सर्वर से कनेक्ट नहीं हो पा रहा है। Error: $e";
+      return "सर्वर तक पहुँच नहीं पा रहा हूँ। इंटरनेट कनेक्शन चेक करें। Error: $e";
     }
   }
 
@@ -101,9 +97,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // UI का कोड बिल्कुल वैसा ही है (बिना किसी बदलाव के)
     return Scaffold(
-      backgroundColor: Color(0xFF0D1117), 
+      backgroundColor: Color(0xFF0D1117), // MechaniQ Theme
       appBar: AppBar(
         backgroundColor: Color(0xFF161B22),
         title: Row(
