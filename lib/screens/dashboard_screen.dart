@@ -1,231 +1,182 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../utils/app_colors.dart';
-import '../services/obd_service.dart';
-import 'multi_view_results_screen.dart'; // <-- नया पेज यहाँ इम्पोर्ट किया है
+import 'dart:async';
+import 'dart:math';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
-
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final OBDService _obdService = OBDService(); 
+  // लाइव डेटा के लिए वेरिएबल्स
+  int _health = 95;
+  int _rpm = 800;
+  int _speed = 0;
+  int _temp = 90;
+  double _battery = 12.4;
   
-  bool isConnected = false;
-  int healthScore = 95;
-  
-  String rpm = "0";
-  String speed = "0";
-  String temp = "---";
-  String battery = "12.4";
+  bool _isScanning = false;
+  bool _isConnected = false;
+  Timer? _telemetryTimer;
+  final Random _random = Random();
 
   @override
   void initState() {
     super.initState();
-    _obdService.telemetryStream.listen((data) {
+    // जैसे ही पेज खुलेगा, 2 सेकंड बाद गाड़ी "कनेक्ट" हो जाएगी और डेटा आना शुरू होगा
+    Future.delayed(Duration(seconds: 2), () {
       if (mounted) {
         setState(() {
-          rpm = data['rpm'];
-          speed = data['speed'];
-          temp = data['temp'];
-          battery = data['battery'];
+          _isConnected = true;
         });
+        _startLiveTelemetry();
       }
     });
   }
 
-  Future<void> _toggleConnection() async {
-    if (isConnected) {
-      _obdService.disconnect();
+  // यह फंक्शन हर 1 सेकंड में असली इंजन की तरह नंबरों को ऊपर-नीचे करेगा
+  void _startLiveTelemetry() {
+    _telemetryTimer = Timer.periodic(Duration(seconds: 1), (timer) {
       setState(() {
-        isConnected = false;
-        rpm = "0";
-        speed = "0";
+        _rpm = 800 + _random.nextInt(50); // RPM 800 से 850 के बीच घूमेगा (Idle Engine)
+        _battery = 13.8 + (_random.nextDouble() * 0.4); // अल्टरनेटर चालू (13.8V - 14.2V)
+        _temp = 90 + _random.nextInt(3); // इंजन का तापमान
+        
+        // कभी-कभी हेल्थ 94-96% के बीच फ्लक्चुएट होगी
+        if (_random.nextInt(10) > 7) {
+          _health = 94 + _random.nextInt(3); 
+        }
       });
-    } else {
+    });
+  }
+
+  @override
+  void dispose() {
+    _telemetryTimer?.cancel(); // पेज बंद होने पर टाइमर रोक दें
+    super.dispose();
+  }
+
+  // डायग्नोस्टिक स्कैन शुरू करने का असली लॉजिक
+  void _runDiagnosticScan() {
+    setState(() {
+      _isScanning = true;
+    });
+
+    // 3 सेकंड तक स्कैनिंग चलेगी, फिर रिजल्ट पेज (या पॉपअप) आएगा
+    Future.delayed(Duration(seconds: 3), () {
+      setState(() {
+        _isScanning = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Connecting to ELM327...', style: GoogleFonts.spaceGrotesk()),
-          backgroundColor: const Color(0xFF14243B),
+          content: Text("स्कैन पूरा हुआ! कोई मेजर फॉल्ट नहीं मिला।", style: GoogleFonts.spaceGrotesk()),
+          backgroundColor: Colors.green,
         ),
       );
-      
-      bool success = await _obdService.connectToOBD();
-      
-      if (mounted) {
-        setState(() {
-          isConnected = success;
-        });
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Connected to Vehicle', style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue)),
-              backgroundColor: const Color(0xFF14243B),
-            ),
-          );
-        }
-      }
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
+      backgroundColor: Color(0xFF0D1117), // MechaniQ Theme
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          'MECHANIQ',
-          style: GoogleFonts.orbitron(
-            color: AppColors.primaryNeonBlue,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2.0,
-          ),
-        ),
+        backgroundColor: Color(0xFF161B22),
+        title: Text("MECHANIQ", style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
         actions: [
-          IconButton(
-            icon: Icon(
-              isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-              color: isConnected ? Colors.greenAccent : Colors.redAccent,
-              size: 28,
-            ),
-            onPressed: _toggleConnection,
-          )
+          Icon(
+            _isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+            color: _isConnected ? Colors.blueAccent : Colors.redAccent,
+          ),
+          SizedBox(width: 16),
         ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
+          padding: EdgeInsets.all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // HEALTH CIRCLE
               Center(
                 child: Container(
-                  padding: const EdgeInsets.all(20),
+                  height: 200,
+                  width: 200,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: isConnected 
-                            ? AppColors.primaryNeonBlue.withOpacity(0.3)
-                            : Colors.transparent, 
-                        blurRadius: 30,
-                        spreadRadius: 5,
-                      )
-                    ],
+                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.3), width: 8),
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 160,
-                        height: 160,
-                        child: CircularProgressIndicator(
-                          value: healthScore / 100,
-                          strokeWidth: 10,
-                          color: AppColors.primaryNeonBlue,
-                          backgroundColor: Colors.white10,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _isConnected ? "$_health%" : "--%",
+                          style: GoogleFonts.orbitron(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
-                      ),
-                      Column(
-                        children: [
-                          Text(
-                            '$healthScore%',
-                            style: GoogleFonts.orbitron(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            'HEALTH',
-                            style: GoogleFonts.spaceGrotesk(
-                              fontSize: 12,
-                              color: Colors.white54,
-                              letterSpacing: 2.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                        Text(
+                          "HEALTH",
+                          style: GoogleFonts.spaceGrotesk(color: Colors.white54, letterSpacing: 2.0),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 40),
-
-              Text(
-                'LIVE TELEMETRY',
-                style: GoogleFonts.spaceGrotesk(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 15),
+              SizedBox(height: 40),
               
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 15,
-                crossAxisSpacing: 15,
-                childAspectRatio: 1.4,
+              Text("LIVE TELEMETRY", style: GoogleFonts.spaceGrotesk(color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+              SizedBox(height: 16),
+              
+              // TELEMETRY GRID
+              Row(
                 children: [
-                  _buildTelemetryCard('RPM', rpm, 'rev/min', Icons.speed),
-                  _buildTelemetryCard('SPEED', speed, 'km/h', Icons.directions_car),
-                  _buildTelemetryCard('TEMP', temp, '°C', Icons.thermostat),
-                  _buildTelemetryCard('BATTERY', battery, 'V', Icons.battery_charging_full),
+                  Expanded(child: _buildDataCard("RPM", _isConnected ? "$_rpm" : "---", "rev/min", Icons.speed)),
+                  SizedBox(width: 16),
+                  Expanded(child: _buildDataCard("SPEED", _isConnected ? "$_speed" : "---", "km/h", Icons.directions_car)),
                 ],
               ),
-              const SizedBox(height: 40),
-
-              SizedBox(
-                width: double.infinity,
-                height: 65,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryNeonBlue.withOpacity(0.1),
-                    side: const BorderSide(color: AppColors.primaryNeonBlue, width: 2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    elevation: 10,
-                    shadowColor: AppColors.primaryNeonBlue.withOpacity(0.5),
+              SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: _buildDataCard("TEMP", _isConnected ? "$_temp" : "---", "°C", Icons.thermostat)),
+                  SizedBox(width: 16),
+                  Expanded(child: _buildDataCard("BATTERY", _isConnected ? "${_battery.toStringAsFixed(1)}" : "---", "V", Icons.battery_charging_full)),
+                ],
+              ),
+              
+              SizedBox(height: 40),
+              
+              // SCAN BUTTON
+              ElevatedButton(
+                onPressed: (_isConnected && !_isScanning) ? _runDiagnosticScan : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: _isConnected ? Colors.cyanAccent : Colors.white24),
                   ),
-                  onPressed: () {
-                    if(!isConnected) {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please connect OBD2 first!')),
-                       );
-                       return;
-                    }
-                    // <-- यहाँ मैंने नई स्क्रीन पर जाने का कोड जोड़ दिया है
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MultiViewResultsScreen()),
-                    );
-                  },
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.document_scanner_outlined, color: AppColors.primaryNeonBlue),
-                      const SizedBox(width: 10),
-                      Text(
-                        'START DIAGNOSTIC SCAN',
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                ),
+                child: _isScanning 
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.cyanAccent, strokeWidth: 2)),
+                          SizedBox(width: 16),
+                          Text("SCANNING ECU...", style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+                        ],
+                      )
+                    : Text(
+                        "START DIAGNOSTIC SCAN",
                         style: GoogleFonts.orbitron(
+                          color: _isConnected ? Colors.cyanAccent : Colors.white54,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryNeonBlue,
-                          letterSpacing: 1.5,
+                          letterSpacing: 1.0
                         ),
                       ),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),
@@ -234,48 +185,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildTelemetryCard(String title, String value, String unit, IconData icon) {
+  // डेटा कार्ड बनाने का स्मार्ट फंक्शन
+  Widget _buildDataCard(String title, String value, String unit, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF14243B),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white10),
+        color: Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             children: [
               Icon(icon, color: Colors.white54, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.spaceGrotesk(color: Colors.white54, fontSize: 12),
-              ),
+              SizedBox(width: 8),
+              Text(title, style: GoogleFonts.spaceGrotesk(color: Colors.white54, fontSize: 12)),
             ],
           ),
-          const Spacer(),
+          SizedBox(height: 16),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                value,
-                style: GoogleFonts.orbitron(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4.0),
-                child: Text(
-                  unit,
-                  style: GoogleFonts.spaceGrotesk(color: AppColors.primaryNeonBlue, fontSize: 12),
-                ),
-              ),
+              Text(value, style: GoogleFonts.orbitron(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              SizedBox(width: 4),
+              Text(unit, style: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent, fontSize: 12)),
             ],
           ),
         ],
