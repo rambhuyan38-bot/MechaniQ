@@ -17,6 +17,7 @@ dependencies:
   # नए असली फीचर्स के पैकेजेस (Firebase, Bluetooth, AI) 👇
   firebase_core: ^2.32.0
   firebase_auth: ^4.15.3
+  cloud_firestore: ^5.0.1
   flutter_blue_plus: ^1.31.0
   google_generative_ai: ^0.4.3
 
