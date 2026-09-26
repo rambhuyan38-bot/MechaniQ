@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Numbers only के लिए जरूरी
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // असली Firebase पैकेज
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -15,8 +16,12 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String _errorMessage = '';
 
-  // 1. असली फोन नंबर चेक करने का लॉजिक
-  void _sendOtp() {
+  // Firebase के वेरिएबल्स
+  FirebaseAuth auth = FirebaseAuth.instance;
+  String _verificationId = "";
+
+  // 1. असली फोन नंबर चेक करने और Firebase OTP भेजने का लॉजिक
+  void _sendOtp() async {
     String phone = _phoneController.text.trim();
     
     if (phone.length != 10) {
@@ -31,23 +36,39 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    // यहाँ हम आगे Firebase जोड़ेंगे। अभी के लिए असली जैसी फीलिंग देने के लिए 2 सेकंड की लोडिंग लगाई है।
-    Future.delayed(Duration(seconds: 2), () {
-      setState(() {
-        _isLoading = false;
-        _isOtpSent = true;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("OTP आपके नंबर पर भेज दिया गया है!"),
-          backgroundColor: Colors.green,
-        ),
-      );
-    });
+    // Firebase Phone Auth
+    await auth.verifyPhoneNumber(
+      phoneNumber: "+91$phone",
+      verificationCompleted: (PhoneAuthCredential credential) async {
+        // अगर ऑटोमैटिक वेरीफाई हो जाए (Android में)
+        await auth.signInWithCredential(credential);
+        if (mounted) Navigator.pushReplacementNamed(context, '/dashboard');
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.message ?? 'OTP भेजने में फेल! इंटरनेट चेक करें।';
+        });
+      },
+      codeSent: (String verificationId, int? resendToken) {
+        setState(() {
+          _isLoading = false;
+          _isOtpSent = true;
+          _verificationId = verificationId; // चाबी सेव कर ली
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("OTP आपके नंबर पर भेज दिया गया है!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      },
+      codeAutoRetrievalTimeout: (String verificationId) {},
+    );
   }
 
   // 2. असली OTP चेक करने का लॉजिक
-  void _verifyOtp() {
+  void _verifyOtp() async {
     String otp = _otpController.text.trim();
 
     if (otp.length != 6) {
@@ -57,12 +78,25 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // जब तक Firebase कनेक्ट नहीं होता, टेस्टिंग के लिए असली OTP '123456' रखा है
-    // इसके अलावा कोई भी OTP डालेंगे तो 'Invalid OTP' बताएगा!
-    if (otp == '123456') {
-      Navigator.pushReplacementNamed(context, '/dashboard'); // या आपकी होम स्क्रीन
-    } else {
+    setState(() {
+      _errorMessage = '';
+      _isLoading = true;
+    });
+
+    try {
+      // Firebase से OTP मैच करना
+      PhoneAuthCredential credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId,
+        smsCode: otp,
+      );
+      await auth.signInWithCredential(credential);
+      
+      // सक्सेस होने पर डैशबोर्ड पर जाएं
+      if (mounted) Navigator.pushReplacementNamed(context, '/dashboard');
+      
+    } catch (e) {
       setState(() {
+        _isLoading = false;
         _errorMessage = 'गलत OTP! कृपया दोबारा प्रयास करें।';
       });
     }
@@ -92,7 +126,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               SizedBox(height: 40),
 
-              // एरर मैसेज दिखाने की जगह
               if (_errorMessage.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 20),
@@ -104,12 +137,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
 
               if (!_isOtpSent) ...[
-                // PHONE NUMBER FIELD (Strict 10 Digits)
                 TextField(
                   controller: _phoneController,
-                  keyboardType: TextInputType.phone, // सिर्फ नंबर वाला कीबोर्ड खुलेगा
-                  maxLength: 10, // 10 से ज्यादा टाइप नहीं होगा
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly], // ABCD टाइप ही नहीं होगा
+                  keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18),
                   decoration: InputDecoration(
                     labelText: "PHONE NUMBER",
@@ -124,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderSide: BorderSide(color: Colors.cyanAccent),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    counterText: "", // maxLength के नीचे का नंबर छुपाने के लिए
+                    counterText: "",
                   ),
                 ),
                 SizedBox(height: 24),
@@ -143,7 +175,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     : Text("SEND OTP", style: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ] else ...[
-                // OTP FIELD (Strict 6 Digits)
                 TextField(
                   controller: _otpController,
                   keyboardType: TextInputType.number,
@@ -167,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _verifyOtp,
+                  onPressed: _isLoading ? null : _verifyOtp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
@@ -176,7 +207,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text("VERIFY & LOGIN", style: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: _isLoading 
+                    ? CircularProgressIndicator(color: Colors.cyanAccent)
+                    : Text("VERIFY & LOGIN", style: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ],
             ],
