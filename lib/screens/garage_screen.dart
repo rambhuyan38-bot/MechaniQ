@@ -1,273 +1,210 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../utils/app_colors.dart';
 
 class GarageScreen extends StatefulWidget {
-  const GarageScreen({Key? key}) : super(key: key);
-
   @override
   _GarageScreenState createState() => _GarageScreenState();
 }
 
 class _GarageScreenState extends State<GarageScreen> {
-  // Mock Payment (नकली पेमेंट) का एनीमेशन दिखाने वाला फंक्शन
-  void _showMockPaymentGateway(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return const MockPaymentSheet();
-      },
+  // यह हमारा लाइव डेटाबेस (List) है। Firebase लगने पर डेटा सीधा सर्वर से आएगा।
+  List<Map<String, dynamic>> _mechanics = [
+    {"name": "Rajesh Auto Works", "specialty": "BS6 & Engine Specialist", "rating": "4.9", "isOnline": true, "fee": "₹99"},
+    {"name": "Sharma Diagnostics", "specialty": "Wiring & ECU Specialist", "rating": "4.7", "isOnline": true, "fee": "₹149"},
+  ];
+
+  bool _isRegistering = false; // यह तय करेगा कि लिस्ट दिखानी है या रजिस्ट्रेशन फॉर्म
+
+  // फॉर्म के कंट्रोलर्स
+  final TextEditingController _shopNameController = TextEditingController();
+  final TextEditingController _expertiseController = TextEditingController();
+  final TextEditingController _feeController = TextEditingController();
+
+  // नया मैकेनिक प्रोफाइल सेव करने का लॉजिक
+  void _saveMechanicProfile() {
+    if (_shopNameController.text.isEmpty || _expertiseController.text.isEmpty || _feeController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("कृपया सभी डिटेल्स भरें!"), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    setState(() {
+      // नया प्रोफाइल हमारे डेटाबेस (लिस्ट) में जोड़ रहे हैं
+      _mechanics.add({
+        "name": _shopNameController.text.trim(),
+        "specialty": _expertiseController.text.trim(),
+        "rating": "5.0", // नए मैकेनिक को डिफ़ॉल्ट 5 स्टार
+        "isOnline": true,
+        "fee": "₹${_feeController.text.trim()}",
+      });
+      _isRegistering = false; // वापस लिस्ट वाले पेज पर भेज रहे हैं
+    });
+
+    _shopNameController.clear();
+    _expertiseController.clear();
+    _feeController.clear();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("आपका मैकेनिक प्रोफाइल लाइव हो गया है!"), backgroundColor: Colors.green),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
+      backgroundColor: Color(0xFF0D1117), // MechaniQ Dark Theme
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: Color(0xFF161B22),
         title: Text(
-          'EXPERT GARAGE',
-          style: GoogleFonts.orbitron(
-            color: AppColors.primaryNeonBlue,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2.0,
-          ),
+          _isRegistering ? "CREATE PROFILE" : "EXPERT GARAGE",
+          style: GoogleFonts.orbitron(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Hero Banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF14243B), Color(0xFF0D0D0D)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: AppColors.primaryNeonBlue.withOpacity(0.5)),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primaryNeonBlue.withOpacity(0.1),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  )
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.support_agent, color: AppColors.primaryNeonBlue, size: 40),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Text(
-                          "Talk to a Certified Mechanic",
-                          style: GoogleFonts.orbitron(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    "Stuck somewhere? Share your MechaniQ diagnostic report directly with an expert and get a live solution within 5 minutes.",
-                    style: GoogleFonts.spaceGrotesk(color: Colors.white70, fontSize: 13, height: 1.5),
-                  ),
-                ],
-              ),
+        actions: [
+          // यह बटन कस्टमर और मैकेनिक व्यू के बीच स्विच करेगा
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _isRegistering = !_isRegistering;
+              });
+            },
+            icon: Icon(_isRegistering ? Icons.list : Icons.build_circle, color: Colors.cyanAccent),
+            label: Text(
+              _isRegistering ? "VIEW LIST" : "BECOME EXPERT",
+              style: GoogleFonts.spaceGrotesk(color: Colors.cyanAccent, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 30),
-
-            Text("AVAILABLE EXPERTS", style: GoogleFonts.spaceGrotesk(color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-            const SizedBox(height: 15),
-
-            // Mechanic List
-            _buildMechanicCard("Rajesh Auto Works", "BS6 & Engine Specialist", "4.9", true),
-            _buildMechanicCard("EV Care Motors", "Electric Vehicle Expert", "4.8", false),
-            _buildMechanicCard("Sharma Diagnostics", "Wiring & ECU Specialist", "4.7", true),
-
-            const SizedBox(height: 30),
-
-            // Pricing & Booking Button
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF14243B),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text("5-Min Live Consultation", style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 16)),
-                      Text("₹99", style: GoogleFonts.orbitron(color: AppColors.primaryNeonBlue, fontSize: 20, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const Divider(color: Colors.white24, height: 30),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryNeonBlue.withOpacity(0.1),
-                        side: const BorderSide(color: AppColors.primaryNeonBlue, width: 2),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: () => _showMockPaymentGateway(context),
-                      child: Text(
-                        'PAY ₹99 & CONNECT',
-                        style: GoogleFonts.orbitron(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryNeonBlue,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          )
+        ],
       ),
+      body: _isRegistering ? _buildRegistrationForm() : _buildMechanicsList(),
     );
   }
 
-  // Mechanic Card UI
-  Widget _buildMechanicCard(String name, String specialty, String rating, bool isOnline) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: const Color(0xFF14243B),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
+  // 1. मैकेनिक का प्रोफाइल बनाने वाला असली फॉर्म
+  Widget _buildRegistrationForm() {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CircleAvatar(
-            backgroundColor: Colors.white10,
-            radius: 25,
-            child: Icon(Icons.person, color: isOnline ? Colors.white : Colors.white54),
+          Icon(Icons.storefront, size: 60, color: Colors.cyanAccent),
+          SizedBox(height: 20),
+          Text(
+            "अपना गैरेज रजिस्टर करें",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: GoogleFonts.spaceGrotesk(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(specialty, style: GoogleFonts.spaceGrotesk(color: Colors.white54, fontSize: 12)),
-              ],
+          SizedBox(height: 30),
+          
+          _buildTextField(_shopNameController, "गैरेज का नाम (e.g., Ram Auto Works)", Icons.home_repair_service),
+          SizedBox(height: 16),
+          _buildTextField(_expertiseController, "आपकी एक्सपर्टीज (e.g., EV, BS6, Wiring)", Icons.engineering),
+          SizedBox(height: 16),
+          _buildTextField(_feeController, "कंसल्टेशन फीस (₹)", Icons.currency_rupee, isNumber: true),
+          
+          SizedBox(height: 40),
+          ElevatedButton(
+            onPressed: _saveMechanicProfile,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent,
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.star, color: Colors.amber, size: 16),
-                  const SizedBox(width: 4),
-                  Text(rating, style: GoogleFonts.spaceGrotesk(color: Colors.white, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Row(
-                children: [
-                  Container(
-                    width: 8, height: 8,
-                    decoration: BoxDecoration(color: isOnline ? Colors.greenAccent : Colors.redAccent, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(isOnline ? "Online" : "Busy", style: GoogleFonts.spaceGrotesk(color: isOnline ? Colors.greenAccent : Colors.redAccent, fontSize: 10)),
-                ],
-              ),
-            ],
+            child: Text(
+              "SAVE & GO LIVE",
+              style: GoogleFonts.orbitron(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-// ================= PAYMENT GATEWAY (MOCK UI) =================
-class MockPaymentSheet extends StatefulWidget {
-  const MockPaymentSheet({Key? key}) : super(key: key);
-
-  @override
-  _MockPaymentSheetState createState() => _MockPaymentSheetState();
-}
-
-class _MockPaymentSheetState extends State<MockPaymentSheet> {
-  bool isProcessing = true;
-  bool isSuccess = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _processPayment();
+  // 2. लाइव मैकेनिक्स की लिस्ट दिखाने वाला UI
+  Widget _buildMechanicsList() {
+    return ListView.builder(
+      padding: EdgeInsets.all(16),
+      itemCount: _mechanics.length,
+      itemBuilder: (context, index) {
+        final mech = _mechanics[index];
+        return Card(
+          color: Color(0xFF161B22),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.white12),
+          ),
+          margin: EdgeInsets.only(bottom: 16),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Colors.white10,
+                      child: Icon(Icons.person, color: Colors.cyanAccent),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(mech["name"], style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          Text(mech["specialty"], style: GoogleFonts.spaceGrotesk(color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.star, color: Colors.amber, size: 16),
+                            SizedBox(width: 4),
+                            Text(mech["rating"], style: GoogleFonts.spaceGrotesk(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            CircleAvatar(radius: 4, backgroundColor: mech["isOnline"] ? Colors.greenAccent : Colors.redAccent),
+                            SizedBox(width: 4),
+                            Text(mech["isOnline"] ? "Online" : "Busy", style: GoogleFonts.spaceGrotesk(color: mech["isOnline"] ? Colors.greenAccent : Colors.redAccent, fontSize: 10)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Divider(color: Colors.white12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Live Consultation", style: GoogleFonts.spaceGrotesk(color: Colors.white70, fontSize: 14)),
+                    Text(mech["fee"], style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  void _processPayment() async {
-    // 3 सेकंड तक लोडिंग दिखाएगा (UPI/Gateway की तरह)
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) {
-      setState(() {
-        isProcessing = false;
-        isSuccess = true;
-      });
-    }
-    // सक्सेस होने के 2 सेकंड बाद पॉप-अप बंद हो जाएगा
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      Navigator.pop(context); // पॉप-अप बंद करो
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connecting to Mechanic...'), backgroundColor: Colors.green),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(30),
-      height: 300,
-      decoration: const BoxDecoration(
-        color: Color(0xFF14243B),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isProcessing) ...[
-              const CircularProgressIndicator(color: AppColors.primaryNeonBlue),
-              const SizedBox(height: 20),
-              Text("Processing Payment via UPI...", style: GoogleFonts.spaceGrotesk(color: Colors.white70, fontSize: 16)),
-              const SizedBox(height: 10),
-              Text("Please do not close this screen", style: GoogleFonts.spaceGrotesk(color: Colors.white38, fontSize: 12)),
-            ] else if (isSuccess) ...[
-              const Icon(Icons.check_circle, color: Colors.greenAccent, size: 80),
-              const SizedBox(height: 20),
-              Text("Payment Successful!", style: GoogleFonts.orbitron(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              Text("Amount Paid: ₹99", style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 16)),
-            ],
-          ],
-        ),
+  // टेक्स्ट फील्ड बनाने का छोटा फंक्शन
+  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {bool isNumber = false}) {
+    return TextField(
+      controller: controller,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: GoogleFonts.spaceGrotesk(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: hint,
+        labelStyle: GoogleFonts.spaceGrotesk(color: Colors.white54),
+        prefixIcon: Icon(icon, color: Colors.cyanAccent),
+        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+        focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.cyanAccent), borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
